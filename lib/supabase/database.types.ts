@@ -56,16 +56,73 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"properties": {
+                  Row: {
+                    "address": string,"archived_at": string | null,"city": string,"created_at": string,"id": string,"name": string,"notes": string,"org_id": string,"rent_due_day": number,"updated_at": string
+                  }
+                  Insert: {
+                    "address"?: string,"archived_at"?: string | null,"city"?: string,"created_at"?: string,"id"?: string,"name": string,"notes"?: string,"org_id": string,"rent_due_day"?: number,"updated_at"?: string
+                  }
+                  Update: {
+                    "address"?: string,"archived_at"?: string | null,"city"?: string,"created_at"?: string,"id"?: string,"name"?: string,"notes"?: string,"org_id"?: string,"rent_due_day"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "properties_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"units": {
+                  Row: {
+                    "bedrooms": number | null,"created_at": string,"default_rent": number,"floor": string,"id": string,"notes": string,"org_id": string,"property_id": string,"status": Database["public"]['Enums']["unit_status"],"unit_number": string,"unit_type": string,"updated_at": string
+                  }
+                  Insert: {
+                    "bedrooms"?: number | null,"created_at"?: string,"default_rent"?: number,"floor"?: string,"id"?: string,"notes"?: string,"org_id": string,"property_id": string,"status"?: Database["public"]['Enums']["unit_status"],"unit_number": string,"unit_type"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "bedrooms"?: number | null,"created_at"?: string,"default_rent"?: number,"floor"?: string,"id"?: string,"notes"?: string,"org_id"?: string,"property_id"?: string,"status"?: Database["public"]['Enums']["unit_status"],"unit_number"?: string,"unit_type"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "units_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "properties"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "units_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "property_overview"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 }
           }
           Views: {
-            [_ in never]: never
+            "property_overview": {
+                  Row: {
+                    "address": string | null,"archived_at": string | null,"city": string | null,"created_at": string | null,"id": string | null,"name": string | null,"occupied_count": number | null,"org_id": string | null,"rent_due_day": number | null,"unit_count": number | null,"vacant_count": number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "properties_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
             [_ in never]: never
           }
           Enums: {
-            "org_member_role": "owner"|"manager","user_role": "landlord"|"tenant"
+            "org_member_role": "owner"|"manager","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -181,7 +238,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "org_member_role": ["owner", "manager"],"user_role": ["landlord", "tenant"]
+            "org_member_role": ["owner", "manager"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
           }
         }
 } as const
