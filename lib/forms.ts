@@ -1,8 +1,8 @@
-import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
+import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
 
 /** Shows server-side validation errors on the matching form fields. */
 export function applyFieldErrors<T extends FieldValues>(
-  form: UseFormReturn<T>,
+  form: { setError: UseFormSetError<T> },
   fieldErrors: Record<string, string[]> | undefined,
 ) {
   if (!fieldErrors) return;
