@@ -7,7 +7,7 @@
 
 ### Progress
 - [x] 0. Project documentation
-- [ ] 1. Foundation
+- [x] 1. Foundation
 - [ ] 2. Properties
 - [ ] 3. Tenants
 - [ ] 4. Rent & bills
@@ -254,3 +254,9 @@ organizations 1─* notifications (→ tenant, → charge)     organizations 1�
 
 ## Changelog
 - 2026-10-03: Initial version. The user decided: tenants onboard by invite code, local Supabase via the CLI, in-app + Resend reminders, BDT with an English UI. Unit and DB tests are skipped for now (E2E only).
+- 2026-10-03: Phase 1 done (branch `feature/foundation`). Decisions made during implementation:
+  - A signup without a valid `role` in its metadata defaults to `tenant`, the least-privileged role.
+  - Local email confirmation is off (`supabase/config.toml`) so local signup is instant. It must be **on** in production.
+  - Local env vars go in `.env.development.local`, which `next dev` loads ahead of the hosted values in `.env.local`.
+  - shadcn components are added with `shadcn@2.3.0`, the last version that targets Tailwind v3.
+  - `/tenant/join` (claiming an invite code) is deferred to Phase 3, since it needs the `tenants` table.

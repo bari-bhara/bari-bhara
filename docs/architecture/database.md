@@ -21,9 +21,9 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 
 | Table | Purpose | Phase | Status |
 |---|---|---|---|
-| `profiles` | One per auth user; `role` landlord/tenant | 1 | Planned |
-| `organizations` | Data owner; currency, timezone | 1 | Planned |
-| `organization_members` | User ↔ org, `owner`/`manager` | 1 | Planned |
+| `profiles` | One per auth user; `role` landlord/tenant | 1 | Implemented (`20261002211833_foundation`) |
+| `organizations` | Data owner; currency, timezone | 1 | Implemented (`20261002211833_foundation`) |
+| `organization_members` | User ↔ org, `owner`/`manager` | 1 | Implemented (`20261002211833_foundation`) |
 | `properties` | Buildings; `rent_due_day` | 2 | Planned |
 | `units` | Flats; status vacant/occupied/maintenance/inactive | 2 | Planned |
 | `tenants` | Person renting; optional `user_id` link | 3 | Planned |
@@ -41,6 +41,51 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `notice_units` | Selected-unit targeting | 6 | Planned |
 | `notice_reads` | Per-user read receipts | 6 | Planned |
 | `notifications` | Per-channel reminder deliveries | 8 | Planned |
+
+## Implemented tables
+
+### `profiles`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | → `auth.users.id`, on delete cascade |
+| `role` | `user_role` enum (`landlord`, `tenant`) | Set at signup; users have no UPDATE privilege on it |
+| `full_name` | text, ≤120 | User-editable |
+| `phone` | text, ≤30, nullable | User-editable |
+| `created_at`, `updated_at` | timestamptz | `updated_at` maintained by trigger |
+
+RLS: a user can select and update only their own row. `supabase_auth_admin` can select (for the token hook).
+
+### `organizations`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `name` | text, 1–120 | Owner-editable |
+| `currency` | text, ISO 4217 (`^[A-Z]{3}$`) | Default `BDT` |
+| `timezone` | text | Default `Asia/Dhaka`; used for due-date and overdue calculations |
+| `created_at`, `updated_at` | timestamptz | |
+
+RLS: members can select; owners can update `name`, `currency` and `timezone`. There are no insert/delete grants (created by the signup trigger).
+
+### `organization_members`
+| Column | Type | Notes |
+|---|---|---|
+| `org_id` | uuid → organizations | PK part; cascade |
+| `user_id` | uuid → profiles | PK part; cascade; indexed |
+| `role` | `org_member_role` enum (`owner`, `manager`) | |
+| `created_at` | timestamptz | |
+
+RLS: members can see the memberships of their organizations. There are no write grants yet; adding managers comes later.
+
+### Functions & triggers
+| Name | Kind | Purpose |
+|---|---|---|
+| `private.handle_new_user()` | trigger on `auth.users` insert, security definer | Creates the profile from signup metadata. Missing or invalid role → `tenant`. For landlords it also creates an organization and an owner membership |
+| `private.custom_access_token_hook(event)` | Auth hook | Adds `app_metadata.user_role` to JWTs. Used for redirects only |
+| `private.user_org_ids()` | security definer, stable | Org ids for `auth.uid()`; used in policies |
+| `private.is_org_owner(org_id)` | security definer, stable | Owner check for org updates |
+| `private.set_updated_at()` | trigger | Maintains `updated_at` |
+
+Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
 ## Conventions
 - PKs are `uuid default gen_random_uuid()`. Every table has `created_at timestamptz default now()`. Money is `numeric(12,2)`. Identifiers are lowercase snake_case.
