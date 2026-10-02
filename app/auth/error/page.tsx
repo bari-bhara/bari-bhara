@@ -1,51 +1,31 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Suspense } from "react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { AuthCard } from "@/components/app/auth-card";
+import { Logo } from "@/components/app/logo";
+import { Button } from "@/components/ui/button";
 
-async function ErrorContent({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
-  const params = await searchParams;
+export const metadata: Metadata = { title: "Link problem" };
 
+export default function AuthErrorPage() {
   return (
-    <>
-      {params?.error ? (
-        <p className="text-sm text-muted-foreground">
-          Code error: {params.error}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          An unspecified error occurred.
-        </p>
-      )}
-    </>
-  );
-}
-
-export default function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ error: string }>;
-}) {
-  return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Sorry, something went wrong.
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense>
-                <ErrorContent searchParams={searchParams} />
-              </Suspense>
-            </CardContent>
-          </Card>
-        </div>
+    <main className="flex min-h-svh flex-col items-center bg-muted/40 px-4 py-10 sm:justify-center">
+      <Logo className="mb-8 text-lg" />
+      <div className="w-full max-w-md">
+        <AuthCard title="This link didn't work">
+          <div className="grid gap-4">
+            <p className="text-sm text-muted-foreground">
+              The link may have expired or already been used. Request a new one
+              and try again.
+            </p>
+            <Button asChild className="h-11">
+              <Link href="/login">Go to log in</Link>
+            </Button>
+            <Button asChild variant="outline" className="h-11">
+              <Link href="/forgot-password">Reset password</Link>
+            </Button>
+          </div>
+        </AuthCard>
       </div>
-    </div>
+    </main>
   );
 }
