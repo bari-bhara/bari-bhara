@@ -8,7 +8,7 @@
 ### Progress
 - [x] 0. Project documentation
 - [x] 1. Foundation
-- [ ] 2. Properties
+- [x] 2. Properties
 - [ ] 3. Tenants
 - [ ] 4. Rent & bills
 - [ ] 5. Maintenance
@@ -285,3 +285,11 @@ Branch `feature/property-management` from `main`. Small commits: db → feature 
   - shadcn components are added with `shadcn@2.3.0`, the last version that targets Tailwind v3.
   - `/tenant/join` (claiming an invite code) is deferred to Phase 3, since it needs the `tenants` table.
 - 2026-10-03: Added `.github/workflows/supabase-migrations.yml`, which runs `supabase db push` on merges to `main` that touch `supabase/migrations/` (plus manual runs). This takes over the "push migrations" item from Phase 10. Auth dashboard settings stay manual.
+- 2026-10-03: Phase 2 done (branch `feature/property-management`). Decisions made during implementation:
+  - `properties.notes` and `units.notes` were added (landlord-only free text). Units get `unique (org_id, id)` now so Phase 3 tables can use composite FKs.
+  - A property with units can't be deleted (FK `on delete restrict`); it is archived instead. Archived properties and their units drop out of lists and pickers.
+  - `occupied` can't be set by hand: the actions reject changes to or from it. The Phase 3 occupancy trigger owns it.
+  - Ids are validated with `z.guid()`, not `z.uuid()`: zod v4's `uuid()` checks RFC 9562 version bits and rejected valid Postgres uuids such as the seed ids.
+  - Fixed two Phase 1 latent bugs exposed by the first dynamic routes: the shell navs called `usePathname()` outside `<Suspense>` (blocks prerendering under `cacheComponents`), and Tailwind's `content` didn't scan `features/`.
+  - `notFound()` from a page inside the layout's Suspense boundary streams the 404 UI with HTTP 200. Tests assert the rendered 404, not the status. A proper `not-found.tsx` belongs to Phase 9.
+  - Next 16 keeps visited routes mounted but hidden, so E2E tests use role queries or `filter({ visible: true })` instead of bare `getByText` counts.

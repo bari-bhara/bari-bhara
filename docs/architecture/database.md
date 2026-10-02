@@ -24,8 +24,9 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `profiles` | One per auth user; `role` landlord/tenant | 1 | Implemented (`20261002211833_foundation`) |
 | `organizations` | Data owner; currency, timezone | 1 | Implemented (`20261002211833_foundation`) |
 | `organization_members` | User ↔ org, `owner`/`manager` | 1 | Implemented (`20261002211833_foundation`) |
-| `properties` | Buildings; `rent_due_day` | 2 | Planned |
-| `units` | Flats; status vacant/occupied/maintenance/inactive | 2 | Planned |
+| `properties` | Buildings; `rent_due_day` | 2 | Implemented (`20261002233120_properties_and_units`) |
+| `units` | Flats; status vacant/occupied/maintenance/inactive | 2 | Implemented (`20261002233120_properties_and_units`) |
+| `property_overview` (view) | Properties + unit/occupied/vacant counts | 2 | Implemented (`20261002233120_properties_and_units`) |
 | `tenants` | Person renting; optional `user_id` link | 3 | Planned |
 | `tenancies` | Tenant ↔ unit over time; move-in/out; never deleted | 3 | Planned |
 | `tenant_invites` | Hashed one-time codes for linking a login | 3 | Planned |
@@ -76,6 +77,45 @@ RLS: members can select; owners can update `name`, `currency` and `timezone`. Th
 
 RLS: members can see the memberships of their organizations. There are no write grants yet; adding managers comes later.
 
+### `properties`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id` | uuid → organizations | cascade; not updatable |
+| `name` | text, 1–120 | |
+| `address` | text, ≤300 | default `''` |
+| `city` | text, ≤80 | default `''` |
+| `rent_due_day` | smallint, 1–28 | default 5. Day of month rent falls due |
+| `notes` | text, ≤1000 | landlord-only |
+| `archived_at` | timestamptz, nullable | set = archived (hidden from lists, kept for history) |
+| `created_at`, `updated_at` | timestamptz | `updated_at` maintained by trigger |
+
+Constraints: `unique (org_id, id)` is the target for child composite FKs and doubles as the `org_id` index.
+
+RLS: org members can select, insert, update and delete (`org_id in (select private.user_org_ids())`). Insertable columns: `org_id, name, address, city, rent_due_day, notes`; updatable: the same minus `org_id`, plus `archived_at`. Tenant read access comes with tenancies in Phase 3.
+
+### `units`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id` | uuid | composite FK with `property_id`; not updatable |
+| `property_id` | uuid | `(org_id, property_id) → properties (org_id, id)` **on delete restrict**; not updatable |
+| `unit_number` | text, 1–20 | `unique (property_id, unit_number)` |
+| `floor` | text, ≤20 | text so `G`/`Ground` work |
+| `unit_type` | text, ≤40 | free text, e.g. "2 bed flat", "Shop" |
+| `bedrooms` | smallint 0–20, nullable | |
+| `default_rent` | numeric(12,2) ≥ 0 | suggested rent for new tenancies |
+| `status` | `unit_status` enum (`vacant`, `occupied`, `maintenance`, `inactive`) | default `vacant`. `occupied` is driven by active tenancies (Phase 3 trigger); the app refuses to hand-set it |
+| `notes` | text, ≤1000 | landlord-only |
+| `created_at`, `updated_at` | timestamptz | `updated_at` maintained by trigger |
+
+Constraints and indexes: `unique (org_id, id)` (for Phase 3+ composite FKs), `unique (property_id, unit_number)`, `units (org_id, property_id)` (FK index), `units (property_id, status)` (status filters).
+
+RLS: org members can select, insert, update and delete. Insertable columns: everything except `id` and timestamps; updatable: the same minus `org_id` and `property_id`, so a unit never moves between properties or orgs. A property with units can't be deleted (FK restrict); it is archived instead.
+
+### `property_overview` (view)
+`security_invoker = true`, so the caller's RLS on `properties` and `units` applies. Columns: the property's `id, org_id, name, address, city, rent_due_day, archived_at, created_at`, plus `unit_count`, `occupied_count`, `vacant_count` (ints). Used by the property list so it is a single query. `select` granted to `authenticated`.
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|
@@ -83,7 +123,7 @@ RLS: members can see the memberships of their organizations. There are no write 
 | `private.custom_access_token_hook(event)` | Auth hook | Adds `app_metadata.user_role` to JWTs. Used for redirects only |
 | `private.user_org_ids()` | security definer, stable | Org ids for `auth.uid()`; used in policies |
 | `private.is_org_owner(org_id)` | security definer, stable | Owner check for org updates |
-| `private.set_updated_at()` | trigger | Maintains `updated_at` |
+| `private.set_updated_at()` | trigger | Maintains `updated_at` on profiles, organizations, properties, units |
 
 Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
