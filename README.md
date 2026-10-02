@@ -64,6 +64,18 @@ Other local services: Supabase Studio at http://127.0.0.1:54323 and Mailpit (cap
 
 Never change the hosted database outside migrations. See [ADR 0006](docs/adr/0006-local-supabase-cli-workflow.md).
 
+### Deploying migrations
+
+[`.github/workflows/supabase-migrations.yml`](.github/workflows/supabase-migrations.yml) runs `supabase db push` against production when files under `supabase/migrations/` are merged to `main`. You can also run it manually from the Actions tab. Seed data is never pushed. It needs these repository settings (Settings → Secrets and variables → Actions):
+
+| Name | Kind | Value |
+|---|---|---|
+| `SUPABASE_ACCESS_TOKEN` | Secret | Personal access token from supabase.com/dashboard/account/tokens |
+| `SUPABASE_DB_PASSWORD` | Secret | Production database password |
+| `SUPABASE_PROJECT_ID` | Variable | Project ref (the subdomain of the project URL) |
+
+Auth settings (Site URL, redirect URLs, the custom access token hook, SMTP) are configured in the Supabase dashboard, not by this workflow.
+
 ## Project structure
 
 ```
