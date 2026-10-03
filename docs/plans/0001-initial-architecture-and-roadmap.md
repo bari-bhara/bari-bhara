@@ -15,7 +15,7 @@
 - [x] 6. Notices
 - [x] 7. Dashboards
 - [x] 8. Notifications
-- [ ] 9. Polish
+- [x] 9. Polish
 - [ ] 10. Deployment
 
 > This is a living document. When a phase lands, tick its box. When the plan changes, edit the plan and record the reason under "Changelog" at the bottom. Significant architectural changes also need a new ADR.
@@ -590,3 +590,12 @@ Branch `feature/polish`, stacked on `feature/notifications`. No migration is exp
   - Bulk reminders send one message per tenant listing all their overdue charges (`charge_id` null). Tenants reminded successfully in the last 20 hours are skipped; tenants with no login or email are reported as unreachable and get no rows.
   - Delivery is synchronous in the Server Action, sequential for bulk. Move to a queue or Edge Function (ADR 0005 alternative) if volumes grow.
   - The tenant "Reminders" inbox is a new nav item with its own unread badge; opening it marks all read (client effect + RPC).
+- 2026-10-03: Phase 9 done (branch `feature/polish`, stacked on `feature/notifications`). Decisions made during implementation:
+  - **Every `.grid` now defaults to one shrinkable column** (`minmax(0, 1fr)`, a base-layer rule in `globals.css`); `grid-cols-*` utilities still override it. The new 360px check found the Phase 3/7 overflow bug twice more (properties list, tenant page). Fixing the default replaces the "use `grid-cols-1`" rule for new pages.
+  - Not-found and error pages render **inside the app shells** (`(landlord)/` and `tenant/`), with a link back to the current section. Signed-out visitors to any unknown URL still go to login first, so the URL list isn't revealed. Error boundaries use Next 16.3's `retry()`.
+  - axe found contrast failures in the theme tokens, not in pages. The light `destructive` is now red-700 and `muted-foreground` is 40% lightness. In dark mode `destructive` is red-500 with dark text on destructive buttons, since white on red-500 fails AA.
+  - Links and other unstyled focusables get one visible focus ring (base layer). The account menu is non-modal, so opening it no longer hides the page from assistive tech.
+  - Paginated lists: landlord notices and maintenance (the old silent cap at 200 is gone), and the tenant's requests, notices, payments and paid rent history (20 per page, `lib/pagination.ts`). Open charges stay on one page. List queries skip notice bodies and request descriptions. Existing indexes cover the new orderings, so there's no migration.
+  - The axe scans run on the desktop project only, since the markup is the same on both. The error boundary was checked by temporarily throwing in a page (shell intact, reference shown, Try again works).
+  - Under full parallel load, three existing tests raced the dev server. They now wait for the event they depend on, and the expect timeout is 10s.
+
