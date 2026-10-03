@@ -481,6 +481,32 @@ Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 00
    - Landlord B sees none of A's reminders.
 7. **Docs:** `architecture/database.md`, tick Phases 7 and 8, changelog, README env notes.
 
+### Phase 9 detail (Polish)
+Branch `feature/polish`, stacked on `feature/notifications`. No migration is expected.
+
+1. **Not-found and error states**
+   - `app/not-found.tsx`: unmatched URLs and any `notFound()` outside the app shells. Branded, with a link home.
+   - `app/(landlord)/not-found.tsx` and `app/tenant/not-found.tsx`: `notFound()` from a page (a missing or other org's record) renders **inside the shell**, with a link back to the section's list.
+   - `error.tsx` in `app/`, `app/(landlord)/` and `app/tenant/`: "Something went wrong", a **Try again** button (`retry()`, Next 16.3) and the error digest as a reference. The shell stays usable. `app/global-error.tsx` covers the root layout.
+   - These replace the default "404" page the E2E tests currently assert.
+2. **Loading states:** `loading.tsx` in `(landlord)` and `tenant/(portal)`, so navigation shows a skeleton at once instead of waiting on the server. Lists get a list-shaped skeleton.
+3. **Performance**
+   - Every list that grows over time is paginated (20 per page, `?page=`), using the existing `Pagination` component:
+     - landlord notices;
+     - landlord maintenance, replacing the silent cap at 200;
+     - tenant requests, notices and payments;
+     - tenant rent history (the "Paid" section). Open charges stay on one page.
+   - Lists select only the columns they show where rows carry large text (notice bodies, request descriptions).
+   - Naturally bounded lists stay unpaginated: properties, units within a property, the rent and bills pages (one month), and dashboard cards (capped in SQL).
+4. **Mobile and layout:** an E2E check that every landlord and tenant page has no horizontal overflow at **360px** (smallest common phone) and **768px** (where the sidebar and tables appear). This extends the 390px check from Phase 3. Fix whatever it finds.
+5. **Accessibility**
+   - Add `@axe-core/playwright` (dev only; an E2E check, so it fits the no-unit-tests decision).
+   - `e2e/a11y.spec.ts` scans the main landlord, tenant and public pages for WCAG 2.1 A/AA violations in **light and dark** mode, and the run fails on any violation.
+   - Fix what it reports.
+   - Manual review of keyboard flow (skip link, dialogs, menus) and focus visibility.
+6. **Tests:** the full suite stays green on mobile and desktop. New tests cover the in-shell 404, the unmatched-URL 404, pagination on one list, the layout checks and the axe scans. The error boundary is checked by hand (by temporarily throwing in a page), since E2E can't make the server fail on demand.
+7. **Docs:** tick Phase 9, changelog.
+
 ---
 
 ## 5. Risks & mitigations
