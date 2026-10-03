@@ -140,7 +140,7 @@ test.describe("tenant data isolation", () => {
     await expect(page.getByRole("link", { name: TENANTS.tanvir.name })).toHaveCount(0);
 
     await page.goto(`/tenants/${TENANTS.tanvir.id}`);
-    await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await expect(page.getByText(TENANTS.tanvir.name)).toHaveCount(0);
   });
 });

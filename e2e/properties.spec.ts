@@ -135,7 +135,7 @@ test.describe("data isolation", () => {
     // RLS returns no row, so the page renders the 404 UI. (It streams inside a
     // Suspense boundary, so the HTTP status is 200 — assert on the content.)
     await page.goto(`/properties/${PROPERTIES.landlordA.id}`);
-    await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await expect(page.getByText(PROPERTIES.landlordA.name)).toHaveCount(0);
   });
 

@@ -175,7 +175,7 @@ test.describe("rent data isolation", () => {
     await b.goto("/payments");
     await expect(b.getByRole("link", { name: "Tanvir Ahmed" })).toHaveCount(0);
     await b.goto(href!);
-    await expect(b.getByRole("heading", { name: "404" })).toBeVisible();
+    await expect(b.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await bContext.close();
   });
 });
