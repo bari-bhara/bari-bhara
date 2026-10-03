@@ -1,0 +1,189 @@
+# Runs the whole app locally: `docker compose up --build`, then open http://localhost:3000.
+# For local use only: the passwords and keys below are Supabase's public demo values.
+#
+#   App        http://localhost:3000
+#   Supabase   http://localhost:54321  (/auth/v1, /rest/v1, /storage/v1)
+#   Mailpit    http://localhost:54324  (captured emails)
+#   Postgres   localhost:54322         (user postgres, password postgres)
+#
+# Uses the same ports as `pnpm db:start`, so run `pnpm db:stop` first.
+
+x-secrets:
+  # The JWT secret signs every token. The anon key is a JWT signed with it (role "anon"),
+  # and the service key is one with role "service_role".
+  jwt-secret: &jwt-secret super-secret-jwt-token-with-at-least-32-characters-long
+  anon-key: &anon-key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  service-key: &service-key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+services:
+  db:
+    image: public.ecr.aws/supabase/postgres:17.11.0.002
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # For database clients (psql, DataGrip): postgresql://postgres:postgres@localhost:54322/postgres
+      - "54322:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    configs:
+      # Runs once when the database is created.
+      - source: db-roles
+        target: /etc/postgresql.schema.sql
+    healthcheck:
+      test: pg_isready -U postgres -h 127.0.0.1
+      interval: 5s
+      retries: 20
+
+  auth:
+    image: public.ecr.aws/supabase/gotrue:v2.197.0
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:54321/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:postgres@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: http://localhost:3000/**
+      GOTRUE_JWT_SECRET: *jwt-secret
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_HOST: mailpit
+      GOTRUE_SMTP_PORT: 1025
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@baribhara.local
+      GOTRUE_SMTP_SENDER_NAME: Bari_bhara
+      GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
+      GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: pg-functions://postgres/private/custom_access_token_hook
+    healthcheck:
+      test: wget -q --spider http://127.0.0.1:9999/health
+      interval: 5s
+      retries: 20
+
+  rest:
+    image: public.ecr.aws/supabase/postgrest:v16.4
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGRST_DB_URI: postgres://authenticator:postgres@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,graphql_public
+      PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_DB_MAX_ROWS: 1000
+      PGRST_JWT_SECRET: *jwt-secret
+
+  storage:
+    image: public.ecr.aws/supabase/storage-api:v1.79.28
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://supabase_storage_admin:postgres@db:5432/postgres
+      AUTH_JWT_SECRET: *jwt-secret
+      ANON_KEY: *anon-key
+      SERVICE_KEY: *service-key
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      FILE_SIZE_LIMIT: 52428800
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+    volumes:
+      - storage-data:/var/lib/storage
+    healthcheck:
+      test: wget -q --spider http://127.0.0.1:5000/status
+      interval: 5s
+      retries: 20
+
+  # Applies supabase/migrations (and the seed data on first run), then exits.
+  # Applied versions are tracked in the same table the Supabase CLI uses.
+  migrate:
+    image: public.ecr.aws/supabase/postgres:17.11.0.002
+    depends_on:
+      auth: { condition: service_healthy }
+      storage: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    volumes:
+      - ./supabase:/supabase:ro
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        sql() { psql -v ON_ERROR_STOP=1 -qtA "$$@"; }
+        sql -c "create schema if not exists supabase_migrations;
+                create table if not exists supabase_migrations.schema_migrations
+                  (version text primary key, statements text[], name text);"
+        fresh=$$(sql -c "select count(*) = 0 from supabase_migrations.schema_migrations")
+        for f in /supabase/migrations/*.sql; do
+          name=$$(basename "$$f" .sql); version=$${name%%_*}
+          [ -n "$$(sql -c "select 1 from supabase_migrations.schema_migrations where version = '$$version'")" ] && continue
+          echo "Applying $$name"
+          sql --single-transaction -f "$$f" \
+            -c "insert into supabase_migrations.schema_migrations (version, name) values ('$$version', '$${name#*_}')"
+        done
+        if [ "$$fresh" = t ]; then echo "Seeding"; sql -f /supabase/seed.sql; fi
+        sql -c "notify pgrst, 'reload schema'"
+
+  # One URL for the Supabase APIs, like the hosted project and `supabase start` give.
+  gateway:
+    image: caddy:2-alpine
+    depends_on: [auth, rest, storage]
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    ports:
+      - "54321:54321"
+      # The app shares this container's network (see below), so its port is published here.
+      - "3000:3000"
+
+  mailpit:
+    image: public.ecr.aws/supabase/mailpit:v1.31.3
+    ports:
+      - "54324:8025"
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: *anon-key
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    # Sharing the gateway's network means http://localhost:54321 reaches Supabase from
+    # both the browser and the Next.js server.
+    network_mode: service:gateway
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      MAILPIT_URL: http://mailpit:8025
+
+configs:
+  db-roles:
+    content: |
+      \set pgpass `echo "$$PGPASSWORD"`
+      ALTER USER postgres WITH PASSWORD :'pgpass';
+      ALTER USER authenticator WITH PASSWORD :'pgpass';
+      ALTER USER supabase_auth_admin WITH PASSWORD :'pgpass';
+      ALTER USER supabase_storage_admin WITH PASSWORD :'pgpass';
+  caddyfile:
+    content: |
+      :54321 {
+        handle_path /auth/v1/* {
+          reverse_proxy auth:9999
+        }
+        handle_path /rest/v1/* {
+          reverse_proxy rest:3000
+        }
+        handle_path /storage/v1/* {
+          reverse_proxy storage:5000
+        }
+      }
+
+volumes:
+  db-data:
+  storage-data:

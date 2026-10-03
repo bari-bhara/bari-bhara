@@ -12,6 +12,16 @@ Plans, architecture decisions and the database reference live in [`docs/`](docs/
 - pnpm
 - Docker (for the local Supabase stack)
 
+## Quick start with Docker
+
+To just run the app, all you need is Docker:
+
+```bash
+docker compose up --build
+```
+
+Open http://localhost:3000 and sign in with a [seed account](#seed-accounts-local-only). Captured emails are at http://localhost:54324. The stack applies the migrations and seed data on first start. `docker compose down -v` wipes the data. It uses the same ports as `pnpm db:start`, so stop that first. For day-to-day development, use the workflow below.
+
 ## Local development
 
 ```bash
