@@ -36,7 +36,8 @@ export function UserMenuDropdown({
   settingsLabel: string;
 }) {
   return (
-    <DropdownMenu>
+    // Non-modal: the rest of the page stays in the accessibility tree (axe: aria-hidden-focus).
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

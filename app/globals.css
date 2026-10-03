@@ -15,10 +15,10 @@
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
+    --muted-foreground: 0 0% 40%; /* 45.1% failed WCAG AA on bg-muted */
     --accent: 0 0% 96.1%;
     --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 73.7% 41.8%; /* red-700: AA as text on white and under white text */
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
@@ -45,8 +45,8 @@
     --muted-foreground: 0 0% 63.9%;
     --accent: 0 0% 14.9%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%; /* red-500: AA as text on the dark background */
+    --destructive-foreground: 0 0% 3.9%; /* white on red-500 fails AA */
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
@@ -76,5 +76,18 @@
    */
   .grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@layer base {
+  /*
+   * One visible keyboard focus style for links and other native controls the
+   * shadcn components don't style. Components with their own focus-visible
+   * ring utilities override it.
+   */
+  :where(a, summary, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: calc(var(--radius) - 4px);
   }
 }
