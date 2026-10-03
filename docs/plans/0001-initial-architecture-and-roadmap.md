@@ -409,6 +409,78 @@ Branch `feature/notices`, stacked on `feature/maintenance`.
    - Delete works.
 5. **Docs (both phases):** `architecture/database.md`, tick Phases 5 and 6, changelog.
 
+### Phase 7 detail (Dashboards)
+Branch `feature/dashboards`, stacked on `feature/notices` (merge order 4 → 5 → 6 → 7 → 8).
+
+"§38" is from the original requirements, which aren't in the repo. The dashboards answer these questions, inferred from the roadmap; correct them if §38 says otherwise:
+- **Landlord:**
+  - How much rent and bills did I collect this month, against what I billed?
+  - How much is outstanding, how much is overdue, and who owes it?
+  - How many units are occupied, and which are vacant?
+  - What maintenance is open?
+  - What happened recently?
+- **Tenant:**
+  - What do I owe, and is any of it overdue?
+  - What's due next?
+  - When did I last pay?
+  - Are my maintenance requests moving?
+  - Do I have unread notices?
+
+1. **Migration `…_dashboards.sql`**, two `security invoker` RPCs returning `jsonb`, so each dashboard is **one round-trip** and RLS still applies:
+   - `landlord_dashboard(p_org_id)`:
+     - unit counts by status;
+     - current tenants;
+     - this month (org timezone): billed, collected (live payments with `paid_on` this month), outstanding;
+     - overdue total and count;
+     - top 5 overdue tenants (amount, oldest due date);
+     - up to 5 vacant units;
+     - open maintenance count and the 5 newest open requests;
+     - live notices;
+     - the 10 latest activity entries, with a readable `subject` resolved in SQL (tenant name, request or notice title, amount).
+   - `tenant_dashboard()`: owed, overdue, next open charge, last payment, open maintenance requests, unread notices (via `charge_balances`, `payments`, `maintenance_requests` and `my_notices`, which tenants can already read).
+   - An index for activity lookups already exists (`activity_log (org_id, created_at desc)`).
+2. **UI**
+   - Landlord `/dashboard`:
+     - stat cards (collected / billed, outstanding with the overdue part, occupancy, open maintenance);
+     - lists: overdue tenants, vacant units, open maintenance, recent activity.
+     - The onboarding empty state stays for landlords with no properties.
+   - Tenant `/tenant/dashboard`: balance card (owed / overdue / next due), last payment, open requests, unread notices, then the home cards.
+   - Activity text comes from `features/dashboard/activity.ts` (one formatter per event type).
+3. **Tests (E2E):** the seeded landlord A dashboard shows the expected collected, overdue and occupancy figures and lists Rahim as overdue. Landlord B's dashboard has none of A's names. Tenant A sees the amount owed and the overdue warning.
+
+### Phase 8 detail (Notifications)
+Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 0005](../adr/0005-notifications-provider-interface-resend.md).
+
+1. **Migration `…_notifications.sql`**
+   - Enums: `notification_type` (`payment_reminder`), `notification_channel` (`in_app|email|sms|whatsapp`), `notification_status` (`pending|sent|failed`).
+   - `notifications`: `org_id`, `tenant_id` (composite FK), `recipient_user_id`, `recipient_email`, `type`, `channel`, `charge_id` (nullable composite FK), `subject` (≤200), `message` (≤4000), `status`, `sent_at`, `read_at`, `error` (≤500), `created_by`, `created_at`. One row per channel delivery.
+   - RLS:
+     - Members can select and insert, and update delivery fields (`status`, `sent_at`, `error`).
+     - Tenants can select their own **in-app** rows only.
+     - Tenants mark rows read through RPC `mark_notifications_read(p_ids uuid[] default null)` (definer), so the shared column grant can't be used to change delivery status.
+   - Activity: `REMINDER_SENT` (per tenant, with channels).
+2. **`lib/notifications/`** (server-only):
+   - `NotificationProvider { channel; send(message) → { ok } | { ok: false, error } }`.
+   - `InAppProvider`: no transport; the row itself is the delivery.
+   - `ResendEmailProvider`: `fetch` to the Resend API, no SDK.
+   - `MailpitEmailProvider` (dev): the local Supabase mail catcher's HTTP API, so dev email actually arrives at <http://127.0.0.1:54324>.
+   - Email selection: `RESEND_API_KEY` → Resend; else `MAILPIT_URL` → Mailpit; else email rows are recorded **failed** with "Email isn't configured".
+   - `dispatch()` inserts `pending` rows, sends each, and records `sent` or `failed` plus the error. A provider exception never loses the row.
+   - Templates in `templates.ts` (plain text + simple HTML, money in the org currency).
+3. **Reminders** (`features/notifications/`)
+   - **Single:** "Send reminder" on an open charge.
+   - **Bulk:** "Remind overdue tenants" on the dashboard and `/rent`. Each tenant with overdue charges gets one reminder listing them; tenants reminded in the last 20 hours are skipped.
+   - Channels per tenant: in-app if they have a login, email if they have an address. With neither, they're reported as "can't be reached" (no rows written).
+   - Results are shown as a toast (sent / failed / skipped / unreachable).
+   - The charge page and tenant page list reminders with their delivery status.
+4. **Tenant UI:** `/tenant/notifications` (new nav item "Reminders" with an unread badge). Viewing marks them read.
+5. **Config:** `.env.example` documents `MAILPIT_URL` (dev only). Add it to `.env.development.local`.
+6. **Tests (E2E):**
+   - A single reminder for Tanvir's overdue bill creates in-app and email rows marked sent, the email arrives in Mailpit, and the tenant sees it.
+   - The bulk reminder skips a recently reminded tenant and reports Rahim (no login or email) as unreachable.
+   - Landlord B sees none of A's reminders.
+7. **Docs:** `architecture/database.md`, tick Phases 7 and 8, changelog, README env notes.
+
 ---
 
 ## 5. Risks & mitigations
