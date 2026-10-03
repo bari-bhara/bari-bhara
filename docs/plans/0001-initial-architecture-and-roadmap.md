@@ -260,3 +260,4 @@ organizations 1─* notifications (→ tenant, → charge)     organizations 1�
   - Local env vars go in `.env.development.local`, which `next dev` loads ahead of the hosted values in `.env.local`.
   - shadcn components are added with `shadcn@2.3.0`, the last version that targets Tailwind v3.
   - `/tenant/join` (claiming an invite code) is deferred to Phase 3, since it needs the `tenants` table.
+- 2026-10-03: Added `.github/workflows/supabase-migrations.yml`, which runs `supabase db push` on merges to `main` that touch `supabase/migrations/` (plus manual runs). This takes over the "push migrations" item from Phase 10. Auth dashboard settings stay manual.
