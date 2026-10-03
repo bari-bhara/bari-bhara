@@ -11,7 +11,7 @@
 - [x] 2. Properties
 - [x] 3. Tenants
 - [x] 4. Rent & bills
-- [ ] 5. Maintenance
+- [x] 5. Maintenance
 - [ ] 6. Notices
 - [ ] 7. Dashboards
 - [ ] 8. Notifications
@@ -464,3 +464,11 @@ Branch `feature/notices`, stacked on `feature/maintenance`.
   - The seed is relative to `current_date`, so last month's unpaid charges are always overdue in tests.
   - Rent and bills share one nav item; each page has a Rent / Utility bills switcher.
   - The tenant pages format money with the first tenancy's currency. Fine while landlords use one currency; revisit if a tenant rents from orgs with different currencies.
+- 2026-10-03: Phase 5 done (branch `feature/maintenance`, stacked on `feature/rent-management`). Decisions made during implementation:
+  - `maintenance_requests` has no landlord-only columns (`assigned_to` is shown to tenants), so tenants read it directly. Privacy comes from `maintenance_updates.is_internal`, enforced by RLS at the row level.
+  - Tenants create and cancel through definer RPCs instead of RLS insert/update policies. That keeps "only your current home" and "only while pending" in one place.
+  - A landlord-raised request is linked to the unit's current tenancy, so the tenant sees it.
+  - Photos upload **from the browser straight to Storage** (no Server Action body limits), then a server action records the paths. A trigger checks that each path matches the request and that the object exists. The request is created before photos, so a failed upload never loses the report.
+  - Changing status with a note writes two timeline rows: the trigger's status row, then the note.
+  - Added `lib/supabase/insert.ts` `filledByTrigger()` for inserts whose NOT NULL columns are filled by triggers (also used for `charges`).
+  - There's no UI or policy for deleting photos yet.

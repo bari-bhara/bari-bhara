@@ -37,9 +37,10 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `payments` | Payments against a charge; voided, never deleted | 4 | Implemented (`20261003020150_charges_and_payments`) |
 | `charge_overview`, `payment_overview` (views) | Landlord lists with tenant/unit/property names | 4 | Implemented (`20261003020150_charges_and_payments`) |
 | `charge_balances` (view) | `outstanding`, `effective_status` incl. overdue | 4 | Implemented (`20261003020150_charges_and_payments`) |
-| `maintenance_requests` | Tenant-reported issues | 5 | Planned |
-| `maintenance_updates` | Comments, status history, internal notes | 5 | Planned |
-| `maintenance_photos` | Storage paths for request photos | 5 | Planned |
+| `maintenance_requests` | Tenant-reported issues | 5 | Implemented (`20261003090154_maintenance`) |
+| `maintenance_updates` | Comments, status history, internal notes | 5 | Implemented (`20261003090154_maintenance`) |
+| `maintenance_overview` (view) | Requests + names + photo/comment counts | 5 | Implemented (`20261003090154_maintenance`) |
+| `maintenance_photos` | Storage paths for request photos | 5 | Implemented (`20261003090154_maintenance`) |
 | `notices` | Announcements with audience targeting | 6 | Planned |
 | `notice_units` | Selected-unit targeting | 6 | Planned |
 | `notice_reads` | Per-user read receipts | 6 | Planned |
@@ -177,7 +178,7 @@ RLS: org members can select (every column except `code_hash`). There are no writ
 | `id` | uuid PK | |
 | `org_id` | uuid → organizations | cascade |
 | `actor_id` | uuid → auth.users, nullable | `auth.uid()` at write time (null for seed/system writes) |
-| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED` |
+| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`, `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED` |
 | `entity_type`, `entity_id` | text, uuid | e.g. `tenant`, `tenancy` |
 | `metadata` | jsonb | event details |
 | `created_at` | timestamptz | |
@@ -262,6 +263,59 @@ Security invoker. Creates one rent charge per active tenancy with `monthly_rent 
 
 Custom SQLSTATEs added: `BB006` charge void, `BB007` charge has live payments, `BB008` overpayment, `BB009` payment already void.
 
+### `maintenance_requests`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | `unique (org_id, id)` |
+| `org_id`, `unit_id` | uuid | composite FK → units, restrict |
+| `tenancy_id`, `tenant_id` | uuid, nullable | composite FKs. Set from the tenancy (tenant RPC) or from the unit's current tenancy (landlord-raised); null for an empty unit |
+| `created_by` | uuid → auth.users | the session user (trigger) |
+| `category` | `maintenance_category` enum | plumbing, electrical, air_conditioning, water, door_lock, internet, appliance, other |
+| `title` | text, 3–120 | |
+| `description` | text, ≤2000 | |
+| `status` | `maintenance_status` enum (`pending`, `in_progress`, `resolved`, `cancelled`) | always `pending` on insert |
+| `assigned_to` | text, ≤120 | free text (vendor); tenant-visible |
+| `resolved_at` | timestamptz | trigger-maintained; `status = 'resolved'` ⇔ set |
+| `created_at`, `updated_at` | | |
+
+Indexes: `(org_id, status, created_at desc)`, `(unit_id, org_id)`, `(tenancy_id, org_id)`, `(tenant_id, org_id)`, `(created_by)`.
+
+There are no landlord-only columns, so the reporting tenant reads their own rows directly ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). RLS: members can select, insert and update; tenants can select their own (`tenant_id in user_tenant_ids()`). Tenants create and cancel only through RPCs. Insertable: `org_id, unit_id, category, title, description`; updatable: `status, assigned_to`. There is no delete.
+
+Triggers: `maintenance_requests_prepare` (links the tenancy/tenant, forces `pending`, maintains `resolved_at`). `maintenance_requests_log` writes a `maintenance_updates` status row on every status change, plus `MAINTENANCE_CREATED` / `MAINTENANCE_STATUS_CHANGED` activity.
+
+### `maintenance_updates`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id`, `request_id` | uuid | composite FK → requests, cascade. `org_id` filled by trigger |
+| `author_id` | uuid → auth.users | the session user (trigger); null for system rows |
+| `body` | text, ≤2000 | required unless the row is a status change |
+| `is_internal` | boolean | landlord-only note. **Tenants never get these rows** |
+| `status_from`, `status_to` | `maintenance_status` | set only by the status trigger (not insertable) |
+| `created_at` | timestamptz | |
+
+RLS: members can select and insert on their org's requests. Tenants can select and insert only **non-internal** rows on their own requests. Insertable: `request_id, body, is_internal`.
+
+### `maintenance_photos`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id`, `request_id` | uuid | composite FK → requests, cascade. `org_id` filled by trigger |
+| `storage_path` | text, unique | must be `{org_id}/{request_id}/…` and **exist** in the bucket (trigger) |
+| `uploaded_by`, `created_at` | | |
+
+At most 6 per request (`BB010`); bad or missing paths raise `BB011`. RLS (select/insert): `private.can_access_maintenance_request(request_id)`.
+
+### `maintenance_overview` (view)
+`security_invoker = true`. Request columns + `tenant_name`, `unit_number`, `property_id`, `property_name`, `photo_count`, `comment_count`. For landlord lists; tenants get no rows.
+
+### Maintenance RPCs
+| Function | Security | Purpose |
+|---|---|---|
+| `create_maintenance_request(p_tenancy_id, p_category, p_title, p_description) → (request_id, request_org_id)` | definer | The caller must be the tenant of that **active** tenancy. Returns ids so the browser can upload photos to the right path |
+| `cancel_maintenance_request(p_request_id) → text` | definer | The reporting tenant can cancel while `pending`. Returns `cancelled`, `not_found` or `not_pending` |
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|
@@ -277,6 +331,8 @@ Custom SQLSTATEs added: `BB006` charge void, `BB007` charge has live payments, `
 | `private.org_today(org_id)` | security definer, stable | Today in the org's time zone; used by `charge_balances` so tenants get correct overdue status |
 | `private.user_tenant_ids()`, `private.user_tenancy_ids()`, `private.user_tenant_org_ids()` | security definer, stable | The caller's tenant records, tenancies and landlord orgs; used in tenant policies |
 | `private.log_rent_generated(...)` | security definer | Logs `RENT_GENERATED` for orgs the caller belongs to |
+| `private.can_access_maintenance_request(id)`, `private.can_access_maintenance_photo_path(name)` | security definer, stable | Member of the request's org, or its tenant; the path form also checks `{org_id}/{request_id}/…` (storage policies) |
+| `private.prepare_maintenance_request()`, `private.log_maintenance_request()`, `private.prepare_maintenance_update()`, `private.prepare_maintenance_photo()` | triggers, security definer | Maintenance rules, status history, activity |
 
 Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
@@ -291,11 +347,11 @@ Default privileges: tables, sequences and functions created in `public` grant **
 |---|---|
 | `anon` | Nothing |
 | Landlord / manager | Full CRUD where `org_id in (select private.user_org_ids())` |
-| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Planned for later phases: non-internal maintenance updates, targeted notices, own notifications; insert own maintenance requests, comments and notice reads |
+| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Reads their own maintenance requests, **non-internal** updates and photos; creates and cancels requests via RPCs; comments publicly. Planned: targeted notices, own notifications, notice reads |
 
 Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. `user_tenant_ids()`, `user_tenancy_ids()`, `user_tenant_org_ids()`, `org_today(org_id)`. Planned: `can_see_notice(notice_id)` (Phase 6).
 
 ## Storage
 | Bucket | Visibility | Path | Access |
 |---|---|---|---|
-| `maintenance-photos` | Private | `{org_id}/{request_id}/{uuid}.{ext}` | Org members; tenant who owns the request. Served via signed URLs |
+| `maintenance-photos` | Private, 5 MB, jpeg/png/webp (created by migration `20261003090154_maintenance`) | `{org_id}/{request_id}/{uuid}.{ext}` | Select/insert on `storage.objects` via `private.can_access_maintenance_photo_path(name)`: org members and the tenant who owns the request. Uploaded straight from the browser; served via 1-hour signed URLs. No update/delete policies |
