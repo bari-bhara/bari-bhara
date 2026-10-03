@@ -352,6 +352,14 @@ Trigger: `NOTICE_CREATED` activity.
 ### `create_notice(p_org_id, p_title, p_body, p_audience, p_property_id, p_unit_ids uuid[], p_publish_at, p_expires_at) → uuid`
 Security invoker. Inserts the notice and its `notice_units` rows atomically. A null `p_publish_at` means now. `units` with no units raises `BB012`; units from another org fail the composite FK.
 
+### Dashboard RPCs (Phase 7, `20261003110000_dashboards`)
+Both are `security invoker` and return one `jsonb` document, so each dashboard is a single round-trip and every figure is limited by the caller's RLS.
+
+| Function | Returns |
+|---|---|
+| `landlord_dashboard(p_org_id) → jsonb` | `today`, `month` (org timezone); `properties`; `units` {total, occupied, vacant, maintenance, inactive}; `current_tenants`; `month_billed` (non-void charges for this billing month); `month_collected` (live payments with `paid_on` this month); `outstanding`; `overdue` {amount, count}; `overdue_tenants` (top 5); `vacant_units` (5); `maintenance` {open, pending}; `open_requests` (5 newest); `live_notices`; `activity` (10 latest, each with `subject` and `place` resolved in SQL). Returns null if the caller isn't a member of `p_org_id` |
+| `tenant_dashboard() → jsonb` | `owed`, `overdue`, `next_due` (earliest open charge), `last_payment`, `open_requests`, `unread_notices`, over the caller's own tenancies |
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|

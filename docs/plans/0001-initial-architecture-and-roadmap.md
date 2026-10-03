@@ -13,7 +13,7 @@
 - [x] 4. Rent & bills
 - [x] 5. Maintenance
 - [x] 6. Notices
-- [ ] 7. Dashboards
+- [x] 7. Dashboards
 - [ ] 8. Notifications
 - [ ] 9. Polish
 - [ ] 10. Deployment
@@ -552,3 +552,8 @@ Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 00
   - The unread badge comes from a `loadBadges` function the tenant layout passes to `AppShell`. It runs inside the nav's existing Suspense boundary, so the shell stays static and `components/app` doesn't import feature code. `refresh()` after marking read updates it.
   - Added `lib/supabase/rpc.ts` `sqlNull()`, because generated RPC argument types don't allow SQL NULL.
   - The seed backdates maintenance status rows so the timelines read in order.
+- 2026-10-03: Phase 7 done (branch `feature/dashboards`, stacked on `feature/notices`). Decisions made during implementation:
+  - §38 isn't in the repo. The questions the dashboards answer are listed in the Phase 7 detail.
+  - Each dashboard is one invoker RPC returning `jsonb`. "Collected" counts payments **received** this month, whatever month they were billed for; "billed" counts charges for this billing month.
+  - Activity entries are resolved to readable subjects in SQL (tenant name, request or notice title, place). The wording lives in `features/dashboard/activity.ts`.
+  - The same mobile overflow bug as Phase 3 (`truncate` text in auto-sized grid tracks) hit the dashboard once real data grew. Its grids now use `grid-cols-1`. **Rule for new pages: any grid holding truncated text needs `grid-cols-1` (or `min-w-0` items).**
