@@ -14,3 +14,4 @@ export const DB_OVERPAYMENT = "BB008";
 export const DB_PAYMENT_ALREADY_VOID = "BB009";
 export const DB_TOO_MANY_PHOTOS = "BB010";
 export const DB_PHOTO_PATH_INVALID = "BB011";
+export const DB_NOTICE_NEEDS_UNITS = "BB012";

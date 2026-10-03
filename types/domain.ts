@@ -12,6 +12,7 @@ export type ChargeStatus = Enums["charge_status"];
 export type PaymentMethod = Enums["payment_method"];
 export type MaintenanceCategory = Enums["maintenance_category"];
 export type MaintenanceStatus = Enums["maintenance_status"];
+export type NoticeAudience = Enums["notice_audience"];
 /** A charge's stored status, or "overdue" (derived in charge_balances; ADR 0004). */
 export type EffectiveStatus = ChargeStatus | "overdue";
 
@@ -63,6 +64,12 @@ export type MaintenanceUpdate = Tables["maintenance_updates"]["Row"];
 export type MaintenanceOverview = Required<
   Views["maintenance_overview"]["Row"],
   "tenancy_id" | "tenant_id" | "created_by" | "resolved_at" | "tenant_name"
+>;
+
+export type MyNotice = Required<Views["my_notices"]["Row"], "expires_at">;
+export type NoticeOverview = Required<
+  Views["notice_overview"]["Row"],
+  "property_id" | "expires_at" | "created_by" | "property_name"
 >;
 
 /** The narrow view of the signed-in user that server code passes around. */

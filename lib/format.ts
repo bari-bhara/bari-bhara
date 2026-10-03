@@ -69,3 +69,46 @@ export function shiftMonth(month: string, delta: number) {
   const date = new Date(Date.UTC(year, m - 1 + delta, 1));
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
+
+/** "3 Oct 2026, 9:30 am" in the organization's time zone. */
+export function formatDateTime(value: string | Date, timeZone = DEFAULT_TIME_ZONE) {
+  return new Intl.DateTimeFormat(LOCALE, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(typeof value === "string" ? new Date(value) : value);
+}
+
+/** Minutes `timeZone` is ahead of UTC at `date`. */
+function zoneOffsetMinutes(date: Date, timeZone: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(date)
+      .map((p) => [p.type, p.value]),
+  );
+  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return Math.round((asUtc - date.getTime()) / 60_000);
+}
+
+/**
+ * A <input type="datetime-local"> value ("2026-10-05T09:00"), read as wall-clock
+ * time in `timeZone`, to an ISO instant. Second pass handles DST edges.
+ */
+export function zonedDateTimeToIso(local: string, timeZone = DEFAULT_TIME_ZONE) {
+  const naiveUtc = new Date(`${local}:00Z`).getTime();
+  let instant = naiveUtc - zoneOffsetMinutes(new Date(naiveUtc), timeZone) * 60_000;
+  instant = naiveUtc - zoneOffsetMinutes(new Date(instant), timeZone) * 60_000;
+  return new Date(instant).toISOString();
+}

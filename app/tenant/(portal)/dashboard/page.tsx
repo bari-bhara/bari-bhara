@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/app/page-header";
+import { getUnreadNoticeCount } from "@/features/notices/queries";
 import { HomeCard } from "@/features/tenant-portal/components/home-card";
 import { requireLinkedTenant } from "@/features/tenant-portal/queries";
 import { requireRole } from "@/lib/dal";
@@ -8,7 +9,11 @@ import { requireRole } from "@/lib/dal";
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function TenantDashboardPage() {
-  const [user, tenancies] = await Promise.all([requireRole("tenant"), requireLinkedTenant()]);
+  const [user, tenancies, unread] = await Promise.all([
+    requireRole("tenant"),
+    requireLinkedTenant(),
+    getUnreadNoticeCount(),
+  ]);
   const firstName = user.fullName.split(" ")[0];
   const current = tenancies.filter((t) => t.status === "active");
   const past = tenancies.filter((t) => t.status !== "active");
@@ -20,6 +25,15 @@ export default async function TenantDashboardPage() {
         description={current.length > 0 ? "Your home at a glance." : "You don't have a current home with us."}
       />
       <div className="grid gap-6">
+        {unread > 0 && (
+          <Link
+            href="/tenant/notices"
+            className="flex items-center justify-between gap-3 rounded-lg border border-primary/40 bg-background p-4 text-sm font-medium hover:bg-accent/50"
+          >
+            You have {unread} unread {unread === 1 ? "notice" : "notices"}
+            <span className="text-muted-foreground">View</span>
+          </Link>
+        )}
         {current.length > 0 && (
           <section aria-labelledby="home-heading" className="grid gap-4">
             <h2 id="home-heading" className="sr-only">

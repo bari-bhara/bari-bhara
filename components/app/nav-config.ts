@@ -25,6 +25,9 @@ export type NavItem = {
 
 export type ShellVariant = "landlord" | "tenant";
 
+/** Counts shown next to nav items, keyed by href (e.g. unread notices). */
+export type NavBadges = Partial<Record<string, number>>;
+
 export const NAV_ITEMS: Record<ShellVariant, NavItem[]> = {
   landlord: [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, primary: true },
