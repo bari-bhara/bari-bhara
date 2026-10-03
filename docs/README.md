@@ -22,6 +22,7 @@ This folder is the single source of truth for how Bari_bhara is planned, designe
 - [0004 — Unified charges table, derived overdue status](adr/0004-unified-charges-table-and-derived-overdue.md) (Accepted)
 - [0005 — Notification provider interface, in-app + Resend](adr/0005-notifications-provider-interface-resend.md) (Accepted)
 - [0006 — Local Supabase CLI workflow](adr/0006-local-supabase-cli-workflow.md) (Accepted)
+- [0007 — Tenants read their data through column-safe functions](adr/0007-tenant-reads-through-safe-functions.md) (Accepted)
 
 ### Architecture reference
 - [Database](architecture/database.md)
