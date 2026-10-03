@@ -10,11 +10,11 @@
 - [x] 1. Foundation
 - [x] 2. Properties
 - [x] 3. Tenants
-- [ ] 4. Rent & bills
-- [ ] 5. Maintenance
-- [ ] 6. Notices
-- [ ] 7. Dashboards
-- [ ] 8. Notifications
+- [x] 4. Rent & bills
+- [x] 5. Maintenance
+- [x] 6. Notices
+- [x] 7. Dashboards
+- [x] 8. Notifications
 - [ ] 9. Polish
 - [ ] 10. Deployment
 
@@ -295,6 +295,192 @@ Branch `feature/tenant-management` from `main`. Commits: db → feature code/UI 
    - Tenant signup now lands on `/tenant/join`.
 5. **Docs:** ADR 0007, `architecture/database.md`, tick Phase 3, changelog.
 
+### Phase 4 detail (Rent, bills & payments)
+Branch `feature/rent-management` from `main`. Follows [ADR 0004](../adr/0004-unified-charges-table-and-derived-overdue.md). Commits: db → landlord UI → tenant UI → tests → docs.
+
+1. **Migration `…_charges_and_payments.sql`**
+   - Enums: `charge_category` (`rent|utility`), `charge_status` (`unpaid|partially_paid|paid|void`), `payment_method` (`cash|bank_transfer|bkash|nagad|card|other`).
+   - `charge_types`: `org_id` (null = system default), `key`, `label`, `category`. `unique nulls not distinct (org_id, key)`. Seeded system types: rent, electricity, gas, water, internet, other. Custom (org) types must be `utility`; there's no UI for them yet.
+   - `charges`:
+     - Columns: `org_id`, `tenancy_id`, `unit_id`, `charge_type_id`, `category`, `billing_month`, `amount` (> 0), `due_date`, `amount_paid`, `status`, `description` (≤200, tenant-visible), `voided_at`, `void_reason`, `created_by`, timestamps.
+     - FKs: composite `(org_id, tenancy_id) → tenancies`, `(org_id, unit_id) → units`.
+     - A before trigger fills `unit_id` and `category` from the tenancy and type, and checks that the type belongs to the org or the system.
+     - Checks: `billing_month` is the 1st; `0 ≤ amount_paid ≤ amount`.
+     - **Status is derived in a before trigger** from `amount_paid` vs `amount`. The only status a user can set is `void`, and only with no live payments. A voided charge is frozen.
+     - Partial unique index `(tenancy_id, billing_month) where category = 'rent' and status <> 'void'` makes rent generation idempotent and lets a voided rent charge be regenerated.
+   - `payments`: `org_id`, `charge_id` (composite FK), `amount` (> 0), `paid_on`, `method`, `reference` (≤100), `recorded_by`, `voided_at`, `void_reason`, `created_at`.
+     - After insert / void, a trigger locks the charge, recomputes `amount_paid` from live payments and **rejects overpayment**.
+     - There are no deletes. The only update is voiding, once, never undone. No payments on void charges.
+   - `private.org_today(org_id)`: today's date in the org's timezone (security definer, so tenants can use it).
+   - Views (`security_invoker`):
+     - `charge_balances`: charges + type label + `outstanding` + `effective_status` (`overdue` when unpaid/partially paid and `due_date < org_today`). Used by both roles.
+     - `charge_overview`: `charge_balances` + tenant, unit and property names, for landlord lists.
+   - RPC `generate_monthly_rent(p_month date, p_property_id uuid default null) → int` (invoker): one rent charge per active tenancy (moved in by the month's end) in the property, or in all of the caller's non-archived properties. Amount = tenancy rent; due = the property's `rent_due_day` in that month; `on conflict do nothing`. Returns the number created.
+   - Activity: `RENT_GENERATED` (one per RPC call, with count), `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`.
+   - RLS:
+     - Landlord/manager: select/insert/update on `charges` and `payments` in their orgs. There are no deletes.
+     - Tenant: **direct select** on their own non-void `charges` and non-void `payments`. These tables have no landlord-only columns, which ADR 0007 allows. Uses new helpers `private.user_tenant_ids()` and `private.user_tenancy_ids()`.
+     - `charge_types`: system rows for everyone signed in; org rows for members and that org's tenants.
+   - Seed, relative to `current_date` so overdue stays deterministic: rent for the last 3 months in both orgs via the RPC. Payments make one charge paid, one partly paid, one previous-month charge unpaid (always overdue), plus one voided payment. Two utility bills: one overdue, one paid.
+2. **Landlord UI** (`features/charges/`, `features/payments/`)
+   - `/rent`: month picker (`?month=YYYY-MM`, default this month in the org timezone); stats (billed, collected, outstanding, overdue); "Generate rent for <month>"; status and property filters.
+   - `/bills`: same layout for utilities, plus a type filter; `/bills/new` (active tenancy, type, month, amount, due date, description).
+   - `/rent/[id]`, `/bills/[id]`: charge detail with payments, **Record payment** (amount defaults to outstanding, date ≤ today, method, reference), **Void payment** (reason), **Void charge** (reason; only with no live payments).
+   - `/payments`: all payments, newest first, method filter, show-voided toggle, 20 per page.
+   - The tenant page gets a balance card (outstanding total + recent charges).
+3. **Tenant UI**
+   - `/tenant/rent`: amount owed, then their charges (overdue first) with status.
+   - `/tenant/payments`: payment history.
+4. **Tests (E2E):**
+   - Generating rent is idempotent.
+   - A partial payment shows *Partly paid*, and paying the rest shows *Paid*.
+   - Overpayment is rejected.
+   - Voiding a payment restores the balance.
+   - A previous-month unpaid charge shows *Overdue*.
+   - Adding a bill works.
+   - The tenant sees their charges and payments.
+   - Landlord B sees none of A's charges.
+5. **Docs:** `architecture/database.md`, tick Phase 4, changelog.
+
+### Phase 5 detail (Maintenance)
+Branch `feature/maintenance`, **stacked on `feature/rent-management`** (Phase 4 isn't merged yet, and both phases append to the seed and docs). Merge order: 4 → 5 → 6.
+
+1. **Migration `…_maintenance.sql`**
+   - Enums: `maintenance_category` (plumbing, electrical, air_conditioning, water, door_lock, internet, appliance, other) and `maintenance_status` (pending, in_progress, resolved, cancelled).
+   - `maintenance_requests`: `org_id`, `unit_id` (composite FK), `tenancy_id`, `tenant_id` (nullable, for landlord-raised issues), `created_by`, `category`, `title` (3–120), `description` (≤2000), `status`, `assigned_to` (≤120, e.g. a plumber's name), `resolved_at`, timestamps. No landlord-only columns, so tenants read their own requests directly (ADR 0007).
+   - `maintenance_updates`: `org_id`, `request_id`, `author_id`, `body` (≤2000), `is_internal`, `status_from`, `status_to`, `created_at`.
+     - A before trigger fills `org_id` and `author_id`.
+     - Users can't write `status_*`. Status changes on a request add a row automatically (security-definer trigger), giving the request its history.
+     - Tenants see and post only non-internal rows on their own requests.
+   - `maintenance_photos`: `org_id`, `request_id`, `storage_path` (unique, must be `{org_id}/{request_id}/…`), `uploaded_by`, `created_at`. At most 6 per request.
+   - Storage: private bucket `maintenance-photos` (5 MB; jpeg/png/webp), created by the migration so hosted gets it too. `storage.objects` policies use `private.can_access_maintenance_request(request_id)` (org member, or the tenant who owns the request) on the path's second folder, and check that the first folder is the request's org. Photos are served through short-lived signed URLs.
+   - RPCs (definer):
+     - `create_maintenance_request(p_tenancy_id, p_category, p_title, p_description)`: the caller must be the tenant of that **active** tenancy. Status is always `pending`.
+     - `cancel_maintenance_request(p_request_id)`: the requesting tenant can cancel only while `pending`.
+   - Landlords insert and update requests directly under RLS (any status change; `resolved_at` is kept in sync).
+   - View `maintenance_overview` (`security_invoker`): requests + tenant, unit and property names + photo count, for landlord lists.
+   - Activity: `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED`.
+   - Seed: a pending request with a comment, an in-progress one with an internal note, a resolved one, and one in landlord B's org.
+2. **Landlord UI** (`features/maintenance/`)
+   - `/maintenance`: open/pending/in progress/resolved/cancelled/all filters (default *open*), property and category filters, newest first.
+   - `/maintenance/new`: raise an issue for any unit.
+   - `/maintenance/[id]`: details, photos, change status (with an optional note), assign, timeline, comment or internal note, add photos.
+3. **Tenant UI**
+   - `/tenant/maintenance`: their requests plus "Report a problem".
+   - `/tenant/maintenance/new`: home (if several), category, title, description, photos. The browser uploads straight to Storage, then the server records the paths.
+   - `/tenant/maintenance/[id]`: details, photos, public timeline, comment, cancel while pending.
+4. **Tests (E2E):**
+   - A tenant reports an issue with a photo and the landlord sees it.
+   - The landlord moves it to in progress with an internal note and a public comment; the tenant sees the comment and status but **not the internal note**.
+   - The tenant can cancel only while pending.
+   - Landlord B and another tenant can't see the request.
+
+### Phase 6 detail (Notices)
+Branch `feature/notices`, stacked on `feature/maintenance`.
+
+1. **Migration `…_notices.sql`**
+   - Enum `notice_audience` (`all|property|units`).
+   - `notices`:
+     - Columns: `org_id`, `title` (1–150), `body` (≤5000), `audience`, `property_id` (composite FK), `publish_at` (default now), `expires_at`, `created_by`, timestamps.
+     - Checks: `property_id` set ⇔ audience `property`; `expires_at > publish_at`.
+   - `notice_units` (`notice_id`, `unit_id`, `org_id`; composite FKs, cascade on notice delete). Rows only for audience `units`.
+   - `notice_reads` (`notice_id`, `user_id`) PK + `read_at`.
+   - `private.can_see_notice(notice_id)` (definer): published, not expired, and the caller has an **active** tenancy matching the audience. It's evaluated live, so a tenant who moves in later sees current notices with no fan-out rows.
+   - RPC `create_notice(p_title, p_body, p_audience, p_property_id, p_unit_ids uuid[], p_publish_at, p_expires_at)` (invoker): notice + units atomically. It validates that the targets belong to the org, and that the units list is non-empty for `units`.
+   - View `my_notices` (`security_invoker`): notices + `is_read` for the caller. Tenants only get notices they can see.
+   - RLS:
+     - Members get full CRUD on notices; `notice_units` is members only.
+     - Tenants can select notices where `can_see_notice`.
+     - `notice_reads`: tenants can insert and select their own rows for visible notices; members can select reads on their org's notices (for read counts).
+   - Activity: `NOTICE_CREATED`.
+   - Seed: landlord A has an all-tenants notice, a Green View property notice, a units notice for A1, an expired one and a scheduled one; landlord B has one notice. `tenant.a` has read one.
+2. **Landlord UI** (`features/notices/`)
+   - `/notices`: list with Scheduled / Live / Expired, audience summary and read count.
+   - `/notices/new`: title, body, audience (all / one property / chosen units), publish and expiry.
+   - `/notices/[id]`: view, read count, delete. There's no edit; delete and re-create instead.
+3. **Tenant UI**
+   - `/tenant/notices`: inbox with unread markers.
+   - `/tenant/notices/[id]`: opening it marks it read (a client effect calls an action, so link prefetching can't mark notices read).
+   - Unread badge on the Notices nav item, rendered in the nav's Suspense boundary.
+   - The tenant dashboard shows the unread count.
+4. **Tests (E2E):**
+   - Targeting: a property notice reaches tenant A; a units notice for a different unit doesn't; expired and scheduled notices are hidden; B's notices are never shown.
+   - Opening a notice clears its unread badge.
+   - Delete works.
+5. **Docs (both phases):** `architecture/database.md`, tick Phases 5 and 6, changelog.
+
+### Phase 7 detail (Dashboards)
+Branch `feature/dashboards`, stacked on `feature/notices` (merge order 4 → 5 → 6 → 7 → 8).
+
+"§38" is from the original requirements, which aren't in the repo. The dashboards answer these questions, inferred from the roadmap; correct them if §38 says otherwise:
+- **Landlord:**
+  - How much rent and bills did I collect this month, against what I billed?
+  - How much is outstanding, how much is overdue, and who owes it?
+  - How many units are occupied, and which are vacant?
+  - What maintenance is open?
+  - What happened recently?
+- **Tenant:**
+  - What do I owe, and is any of it overdue?
+  - What's due next?
+  - When did I last pay?
+  - Are my maintenance requests moving?
+  - Do I have unread notices?
+
+1. **Migration `…_dashboards.sql`**, two `security invoker` RPCs returning `jsonb`, so each dashboard is **one round-trip** and RLS still applies:
+   - `landlord_dashboard(p_org_id)`:
+     - unit counts by status;
+     - current tenants;
+     - this month (org timezone): billed, collected (live payments with `paid_on` this month), outstanding;
+     - overdue total and count;
+     - top 5 overdue tenants (amount, oldest due date);
+     - up to 5 vacant units;
+     - open maintenance count and the 5 newest open requests;
+     - live notices;
+     - the 10 latest activity entries, with a readable `subject` resolved in SQL (tenant name, request or notice title, amount).
+   - `tenant_dashboard()`: owed, overdue, next open charge, last payment, open maintenance requests, unread notices (via `charge_balances`, `payments`, `maintenance_requests` and `my_notices`, which tenants can already read).
+   - An index for activity lookups already exists (`activity_log (org_id, created_at desc)`).
+2. **UI**
+   - Landlord `/dashboard`:
+     - stat cards (collected / billed, outstanding with the overdue part, occupancy, open maintenance);
+     - lists: overdue tenants, vacant units, open maintenance, recent activity.
+     - The onboarding empty state stays for landlords with no properties.
+   - Tenant `/tenant/dashboard`: balance card (owed / overdue / next due), last payment, open requests, unread notices, then the home cards.
+   - Activity text comes from `features/dashboard/activity.ts` (one formatter per event type).
+3. **Tests (E2E):** the seeded landlord A dashboard shows the expected collected, overdue and occupancy figures and lists Rahim as overdue. Landlord B's dashboard has none of A's names. Tenant A sees the amount owed and the overdue warning.
+
+### Phase 8 detail (Notifications)
+Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 0005](../adr/0005-notifications-provider-interface-resend.md).
+
+1. **Migration `…_notifications.sql`**
+   - Enums: `notification_type` (`payment_reminder`), `notification_channel` (`in_app|email|sms|whatsapp`), `notification_status` (`pending|sent|failed`).
+   - `notifications`: `org_id`, `tenant_id` (composite FK), `recipient_user_id`, `recipient_email`, `type`, `channel`, `charge_id` (nullable composite FK), `subject` (≤200), `message` (≤4000), `status`, `sent_at`, `read_at`, `error` (≤500), `created_by`, `created_at`. One row per channel delivery.
+   - RLS:
+     - Members can select and insert, and update delivery fields (`status`, `sent_at`, `error`).
+     - Tenants can select their own **in-app** rows only.
+     - Tenants mark rows read through RPC `mark_notifications_read(p_ids uuid[] default null)` (definer), so the shared column grant can't be used to change delivery status.
+   - Activity: `REMINDER_SENT` (per tenant, with channels).
+2. **`lib/notifications/`** (server-only):
+   - `NotificationProvider { channel; send(message) → { ok } | { ok: false, error } }`.
+   - `InAppProvider`: no transport; the row itself is the delivery.
+   - `ResendEmailProvider`: `fetch` to the Resend API, no SDK.
+   - `MailpitEmailProvider` (dev): the local Supabase mail catcher's HTTP API, so dev email actually arrives at <http://127.0.0.1:54324>.
+   - Email selection: `RESEND_API_KEY` → Resend; else `MAILPIT_URL` → Mailpit; else email rows are recorded **failed** with "Email isn't configured".
+   - `dispatch()` inserts `pending` rows, sends each, and records `sent` or `failed` plus the error. A provider exception never loses the row.
+   - Templates in `templates.ts` (plain text + simple HTML, money in the org currency).
+3. **Reminders** (`features/notifications/`)
+   - **Single:** "Send reminder" on an open charge.
+   - **Bulk:** "Remind overdue tenants" on the dashboard and `/rent`. Each tenant with overdue charges gets one reminder listing them; tenants reminded in the last 20 hours are skipped.
+   - Channels per tenant: in-app if they have a login, email if they have an address. With neither, they're reported as "can't be reached" (no rows written).
+   - Results are shown as a toast (sent / failed / skipped / unreachable).
+   - The charge page and tenant page list reminders with their delivery status.
+4. **Tenant UI:** `/tenant/notifications` (new nav item "Reminders" with an unread badge). Viewing marks them read.
+5. **Config:** `.env.example` documents `MAILPIT_URL` (dev only). Add it to `.env.development.local`.
+6. **Tests (E2E):**
+   - A single reminder for Tanvir's overdue bill creates in-app and email rows marked sent, the email arrives in Mailpit, and the tenant sees it.
+   - The bulk reminder skips a recently reminded tenant and reports Rahim (no login or email) as unreachable.
+   - Landlord B sees none of A's reminders.
+7. **Docs:** `architecture/database.md`, tick Phases 7 and 8, changelog, README env notes.
+
 ---
 
 ## 5. Risks & mitigations
@@ -341,3 +527,40 @@ Branch `feature/tenant-management` from `main`. Commits: db → feature code/UI 
   - Move-out dates can't be in the future (no scheduled move-outs in v1).
   - Fixed a mobile layout bug: in grid layouts, `truncate` text and the chip rows widened the page, which pushed the fixed bottom nav off-screen. List grids now use `grid-cols-1`, and chip rows scroll inside their own box.
   - Database tests stay manual (per the no-unit-tests decision). The occupancy, guard, invite, lockout and isolation rules were exercised in SQL against the seed in a rolled-back transaction; the E2E suite covers the UI flows.
+- 2026-10-03: Phase 4 done (branch `feature/rent-management`). Decisions made during implementation:
+  - `charges.category` is copied from the charge type by trigger, so the "one rent per tenancy per month" index can be a plain partial unique index. It excludes void charges, so voided rent can be regenerated.
+  - Charge **status is derived by a trigger** from `amount_paid`. Users can only set `void`, and only with no live payments. Amounts are fixed once created: void and re-create to correct (no edit UI).
+  - Overdue uses `private.org_today(org_id)` (security definer), so tenants, who can't read `organizations`, still get the org-local date.
+  - Tenants read their own non-void `charges` and `payments` directly under RLS, as ADR 0007 allows for tables without landlord-only columns. Landlord lists use the `charge_overview` / `payment_overview` views.
+  - `generate_monthly_rent` takes `(p_month, p_property_id default null)`; null means all of the caller's active properties, which is what `/rent` uses. It skips tenancies that move in after the month ends and doesn't prorate.
+  - The seed is relative to `current_date`, so last month's unpaid charges are always overdue in tests.
+  - Rent and bills share one nav item; each page has a Rent / Utility bills switcher.
+  - The tenant pages format money with the first tenancy's currency. Fine while landlords use one currency; revisit if a tenant rents from orgs with different currencies.
+- 2026-10-03: Phase 5 done (branch `feature/maintenance`, stacked on `feature/rent-management`). Decisions made during implementation:
+  - `maintenance_requests` has no landlord-only columns (`assigned_to` is shown to tenants), so tenants read it directly. Privacy comes from `maintenance_updates.is_internal`, enforced by RLS at the row level.
+  - Tenants create and cancel through definer RPCs instead of RLS insert/update policies. That keeps "only your current home" and "only while pending" in one place.
+  - A landlord-raised request is linked to the unit's current tenancy, so the tenant sees it.
+  - Photos upload **from the browser straight to Storage** (no Server Action body limits), then a server action records the paths. A trigger checks that each path matches the request and that the object exists. The request is created before photos, so a failed upload never loses the report.
+  - Changing status with a note writes two timeline rows: the trigger's status row, then the note.
+  - Added `lib/supabase/insert.ts` `filledByTrigger()` for inserts whose NOT NULL columns are filled by triggers (also used for `charges`).
+  - There's no UI or policy for deleting photos yet.
+- 2026-10-03: Phase 6 done (branch `feature/notices`, stacked on `feature/maintenance`). Decisions made during implementation:
+  - Tenant visibility is the set function `private.user_visible_notice_ids()`, used in policies as `id in (select …)` so it's evaluated once per query. `can_see_notice(id)` remains as the single-notice form named in §3.
+  - Notices have no edit; delete and re-create. This keeps read receipts honest.
+  - "Publish at" and "Hide after" are entered as wall-clock time in the org's time zone and converted with `zonedDateTimeToIso()` in `lib/format.ts`.
+  - A notice is marked read by a client effect on its page, not during server rendering, so link prefetching can't mark it read.
+  - The unread badge comes from a `loadBadges` function the tenant layout passes to `AppShell`. It runs inside the nav's existing Suspense boundary, so the shell stays static and `components/app` doesn't import feature code. `refresh()` after marking read updates it.
+  - Added `lib/supabase/rpc.ts` `sqlNull()`, because generated RPC argument types don't allow SQL NULL.
+  - The seed backdates maintenance status rows so the timelines read in order.
+- 2026-10-03: Phase 7 done (branch `feature/dashboards`, stacked on `feature/notices`). Decisions made during implementation:
+  - §38 isn't in the repo. The questions the dashboards answer are listed in the Phase 7 detail.
+  - Each dashboard is one invoker RPC returning `jsonb`. "Collected" counts payments **received** this month, whatever month they were billed for; "billed" counts charges for this billing month.
+  - Activity entries are resolved to readable subjects in SQL (tenant name, request or notice title, place). The wording lives in `features/dashboard/activity.ts`.
+  - The same mobile overflow bug as Phase 3 (`truncate` text in auto-sized grid tracks) hit the dashboard once real data grew. Its grids now use `grid-cols-1`. **Rule for new pages: any grid holding truncated text needs `grid-cols-1` (or `min-w-0` items).**
+- 2026-10-03: Phase 8 done (branch `feature/notifications`, stacked on `feature/dashboards`). Decisions made during implementation:
+  - **Recipients are filled from the tenant record by trigger and aren't insertable.** Otherwise a landlord could send in-app messages to other orgs' users, or use the sending domain to email anyone.
+  - Added a **Mailpit email provider for development** (the local Supabase mail catcher's HTTP API), alongside ADR 0005's in-app and Resend providers. Dev reminders arrive at <http://127.0.0.1:54324> and E2E tests check them. Selection: `RESEND_API_KEY` → Resend; `MAILPIT_URL` → Mailpit; otherwise email rows are recorded failed with "Email isn't configured". This is within ADR 0005's interface, so there's no new ADR.
+  - Resend is called with `fetch` (no SDK dependency).
+  - Bulk reminders send one message per tenant listing all their overdue charges (`charge_id` null). Tenants reminded successfully in the last 20 hours are skipped; tenants with no login or email are reported as unreachable and get no rows.
+  - Delivery is synchronous in the Server Action, sequential for bulk. Move to a queue or Edge Function (ADR 0005 alternative) if volumes grow.
+  - The tenant "Reminders" inbox is a new nav item with its own unread badge; opening it marks all read (client effect + RPC).

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, isNavItemActive, type ShellVariant } from "./nav-config";
+import { NAV_ITEMS, isNavItemActive, type NavBadges, type ShellVariant } from "./nav-config";
 
 /** Highlights the current section. Render inside <Suspense> (see SidebarNavList). */
-export function SidebarNav(props: { variant: ShellVariant; onNavigate?: () => void }) {
+export function SidebarNav(props: { variant: ShellVariant; onNavigate?: () => void; badges?: NavBadges }) {
   return <SidebarNavList {...props} pathname={usePathname()} />;
 }
 
@@ -19,15 +19,18 @@ export function SidebarNavList({
   variant,
   pathname,
   onNavigate,
+  badges,
 }: {
   variant: ShellVariant;
   pathname: string;
   onNavigate?: () => void;
+  badges?: NavBadges;
 }) {
   return (
     <ul className="grid gap-1">
       {NAV_ITEMS[variant].map((item) => {
         const active = isNavItemActive(item, pathname);
+        const badge = badges?.[item.href] ?? 0;
         return (
           <li key={item.href}>
             <Link
@@ -41,6 +44,12 @@ export function SidebarNavList({
             >
               <item.icon className="h-4 w-4 shrink-0" aria-hidden />
               {item.label}
+              {badge > 0 && (
+                <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-primary-foreground">
+                  {badge}
+                  <span className="sr-only"> unread</span>
+                </span>
+              )}
             </Link>
           </li>
         );

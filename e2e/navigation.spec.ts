@@ -39,6 +39,15 @@ test("pages don't overflow horizontally", async ({ page }) => {
     "/tenants?status=all",
     `/tenants/${TENANTS.sumaiya.id}`,
     "/tenants/new",
+    "/rent",
+    "/bills",
+    "/bills/new",
+    "/payments",
+    "/maintenance",
+    "/maintenance?status=all",
+    "/maintenance/new",
+    "/notices",
+    "/notices/new",
   ];
   for (const path of paths) {
     await page.goto(path);

@@ -1,5 +1,6 @@
 import {
   Bell,
+  BellRing,
   Building2,
   CreditCard,
   DoorOpen,
@@ -25,6 +26,9 @@ export type NavItem = {
 
 export type ShellVariant = "landlord" | "tenant";
 
+/** Counts shown next to nav items, keyed by href (e.g. unread notices). */
+export type NavBadges = Partial<Record<string, number>>;
+
 export const NAV_ITEMS: Record<ShellVariant, NavItem[]> = {
   landlord: [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, primary: true },
@@ -43,6 +47,7 @@ export const NAV_ITEMS: Record<ShellVariant, NavItem[]> = {
     { label: "Payments", href: "/tenant/payments", icon: CreditCard },
     { label: "Maintenance", href: "/tenant/maintenance", icon: Wrench, primary: true },
     { label: "Notices", href: "/tenant/notices", icon: Bell, primary: true },
+    { label: "Reminders", href: "/tenant/notifications", icon: BellRing },
     { label: "Profile", href: "/tenant/profile", icon: UserRound },
   ],
 };

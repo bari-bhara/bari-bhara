@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Logo } from "./logo";
 import { MobileNav, MobileNavBar } from "./mobile-nav";
-import type { ShellVariant } from "./nav-config";
+import type { NavBadges, ShellVariant } from "./nav-config";
 import { SidebarNav, SidebarNavList } from "./sidebar-nav";
 import { UserMenu, UserMenuSkeleton } from "./user-menu";
 
@@ -17,9 +17,12 @@ const HOME: Record<ShellVariant, string> = {
  */
 export function AppShell({
   variant,
+  loadBadges,
   children,
 }: {
   variant: ShellVariant;
+  /** Loads nav badge counts. Runs inside the nav's Suspense boundary (it reads the session). */
+  loadBadges?: () => Promise<NavBadges>;
   children: React.ReactNode;
 }) {
   return (
@@ -38,7 +41,7 @@ export function AppShell({
         <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-2">
           {/* The active item depends on the URL, which dynamic routes only know at request time. */}
           <Suspense fallback={<SidebarNavList variant={variant} pathname="" />}>
-            <SidebarNav variant={variant} />
+            <SidebarSlot variant={variant} loadBadges={loadBadges} />
           </Suspense>
         </nav>
       </aside>
@@ -63,8 +66,16 @@ export function AppShell({
       </div>
 
       <Suspense fallback={<MobileNavBar variant={variant} pathname="" />}>
-        <MobileNav variant={variant} />
+        <MobileSlot variant={variant} loadBadges={loadBadges} />
       </Suspense>
     </div>
   );
+}
+
+async function SidebarSlot({ variant, loadBadges }: { variant: ShellVariant; loadBadges?: () => Promise<NavBadges> }) {
+  return <SidebarNav variant={variant} badges={loadBadges ? await loadBadges() : undefined} />;
+}
+
+async function MobileSlot({ variant, loadBadges }: { variant: ShellVariant; loadBadges?: () => Promise<NavBadges> }) {
+  return <MobileNav variant={variant} badges={loadBadges ? await loadBadges() : undefined} />;
 }

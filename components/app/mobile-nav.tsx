@@ -13,19 +13,27 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, isNavItemActive, type ShellVariant } from "./nav-config";
+import { NAV_ITEMS, isNavItemActive, type NavBadges, type ShellVariant } from "./nav-config";
 import { SidebarNavList } from "./sidebar-nav";
 
 /** Highlights the current section. Render inside <Suspense> (see MobileNavBar). */
-export function MobileNav({ variant }: { variant: ShellVariant }) {
-  return <MobileNavBar variant={variant} pathname={usePathname()} />;
+export function MobileNav({ variant, badges }: { variant: ShellVariant; badges?: NavBadges }) {
+  return <MobileNavBar variant={variant} pathname={usePathname()} badges={badges} />;
 }
 
 /**
  * Bottom tab bar for phones: primary destinations plus a "More" sheet.
  * With pathname "" nothing is highlighted (the Suspense fallback).
  */
-export function MobileNavBar({ variant, pathname }: { variant: ShellVariant; pathname: string }) {
+export function MobileNavBar({
+  variant,
+  pathname,
+  badges,
+}: {
+  variant: ShellVariant;
+  pathname: string;
+  badges?: NavBadges;
+}) {
   const [open, setOpen] = useState(false);
   const items = NAV_ITEMS[variant];
   const primary = items.filter((item) => item.primary);
@@ -41,6 +49,7 @@ export function MobileNavBar({ variant, pathname }: { variant: ShellVariant; pat
       <ul className="grid grid-cols-5">
         {primary.map((item) => {
           const active = isNavItemActive(item, pathname);
+          const badge = badges?.[item.href] ?? 0;
           return (
             <li key={item.href}>
               <Link
@@ -51,8 +60,18 @@ export function MobileNavBar({ variant, pathname }: { variant: ShellVariant; pat
                   active && "text-foreground",
                 )}
               >
-                <item.icon className="h-5 w-5" aria-hidden />
-                <span className="truncate">{item.label}</span>
+                <span className="relative">
+                  <item.icon className="h-5 w-5" aria-hidden />
+                  {badge > 0 && (
+                    <span className="absolute -right-2.5 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-semibold leading-4 text-primary-foreground">
+                      {badge}
+                    </span>
+                  )}
+                </span>
+                <span className="truncate">
+                  {item.label}
+                  {badge > 0 && <span className="sr-only">, {badge} unread</span>}
+                </span>
               </Link>
             </li>
           );
@@ -76,6 +95,7 @@ export function MobileNavBar({ variant, pathname }: { variant: ShellVariant; pat
               <SidebarNavList
                 variant={variant}
                 pathname={pathname}
+                badges={badges}
                 onNavigate={() => setOpen(false)}
               />
             </SheetContent>

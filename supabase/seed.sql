@@ -124,3 +124,187 @@ insert into public.tenant_invites (org_id, tenant_id, code_hash, expires_at)
 select org_id, id, encode(extensions.digest('B4R1BH4RA5', 'sha256'), 'hex'), now() + interval '30 days'
 from public.tenants
 where id = 'dddddddd-0000-0000-0000-000000000002';
+
+-------------------------------------------------------------------------------
+-- Rent, bills & payments (Phase 4). Relative to current_date so the
+-- previous month's unpaid charges are always overdue.
+--   m2 = two months ago, m1 = last month, m0 = this month
+-- Landlord A:
+--   Tanvir (A1, 18000): m2 paid, m1 paid, m0 partly paid (10000);
+--                       m1 electricity bill 2350 unpaid → overdue
+--   Rahim  (A2, 25000): m2 paid (plus one voided duplicate payment);
+--                       m1 unpaid → overdue; m0 unpaid; m1 water bill paid
+--   Nusrat (1A, 15000): m2, m1 paid; m0 unpaid
+-- Landlord B:
+--   Imran   (101, 40000): m2, m1 paid; m0 unpaid
+--   Farzana (102, 40000): moved in this Sept; m1 partly paid (20000)
+-------------------------------------------------------------------------------
+
+do $$
+declare
+  m0 date := date_trunc('month', current_date)::date;
+  m1 date := (date_trunc('month', current_date) - interval '1 month')::date;
+  m2 date := (date_trunc('month', current_date) - interval '2 months')::date;
+  v_duplicate_id uuid;
+begin
+  perform public.generate_monthly_rent(m2);
+  perform public.generate_monthly_rent(m1);
+  perform public.generate_monthly_rent(m0);
+
+  insert into public.charges (org_id, tenancy_id, charge_type_id, billing_month, amount, due_date, description)
+  select tc.org_id, tc.id, ct.id, m1, v.amount, m1 + 24, v.description
+  from (values
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'electricity', 2350, 'Meter reading 10452'),
+    ('cccccccc-0000-0000-0000-000000000002'::uuid, 'water',        600, '')
+  ) as v (tenant_id, type_key, amount, description)
+  join public.tenancies tc on tc.tenant_id = v.tenant_id and tc.status = 'active'
+  join public.charge_types ct on ct.org_id is null and ct.key = v.type_key;
+
+  -- A duplicate entry for Rahim's m2 rent, recorded then voided (before the real one).
+  insert into public.payments (org_id, charge_id, amount, paid_on, method, reference)
+  select c.org_id, c.id, 25000, m2 + 5, 'cash', ''
+  from public.charges c
+  join public.tenancies tc on tc.id = c.tenancy_id
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000002' and c.category = 'rent' and c.billing_month = m2
+  returning id into v_duplicate_id;
+
+  update public.payments
+  set voided_at = now(), void_reason = 'Recorded twice'
+  where id = v_duplicate_id;
+
+  insert into public.payments (org_id, charge_id, amount, paid_on, method, reference)
+  select c.org_id, c.id, v.amount, c.billing_month + v.day_offset, v.method::public.payment_method, v.reference
+  from (values
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'rent',  m2, 18000, 3, 'cash',          ''),
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'rent',  m1, 18000, 4, 'bkash',         'BK7Q2M1X'),
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'rent',  m0, 10000, 1, 'bkash',         'BK9P4L2Z'),
+    ('cccccccc-0000-0000-0000-000000000002'::uuid, 'rent',  m2, 25000, 5, 'bank_transfer', 'DBBL-55120'),
+    ('cccccccc-0000-0000-0000-000000000002'::uuid, 'water', m1,   600, 26, 'cash',         ''),
+    ('cccccccc-0000-0000-0000-000000000004'::uuid, 'rent',  m2, 15000, 2, 'nagad',         'NG-30091'),
+    ('cccccccc-0000-0000-0000-000000000004'::uuid, 'rent',  m1, 15000, 3, 'nagad',         'NG-31447'),
+    ('dddddddd-0000-0000-0000-000000000001'::uuid, 'rent',  m2, 40000, 4, 'bank_transfer', 'CITY-8812'),
+    ('dddddddd-0000-0000-0000-000000000001'::uuid, 'rent',  m1, 40000, 4, 'bank_transfer', 'CITY-9020'),
+    ('dddddddd-0000-0000-0000-000000000002'::uuid, 'rent',  m1, 20000, 6, 'cash',          '')
+  ) as v (tenant_id, type_key, billing_month, amount, day_offset, method, reference)
+  join public.tenancies tc on tc.tenant_id = v.tenant_id and tc.status = 'active'
+  join public.charge_types ct on ct.org_id is null and ct.key = v.type_key
+  join public.charges c on c.tenancy_id = tc.id and c.charge_type_id = ct.id and c.billing_month = v.billing_month;
+
+end;
+$$;
+
+-------------------------------------------------------------------------------
+-- Maintenance (Phase 5). Comments carry explicit authors (no session in seed).
+--   Tanvir (A1):  pending "Kitchen sink is leaking" + a tenant comment
+--   Rahim (A2):   in progress "AC not cooling" + internal note + public reply
+--   Nusrat (1A):  resolved "Front door lock is jammed"
+--   Imran (B 101): pending "No internet since yesterday"
+-------------------------------------------------------------------------------
+
+do $$
+declare
+  c_landlord_a constant uuid := '11111111-1111-1111-1111-111111111111';
+  c_tenant_a constant uuid := '33333333-3333-3333-3333-333333333333';
+  v_sink uuid;
+  v_ac uuid;
+  v_lock uuid;
+begin
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_by, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'plumbing', 'Kitchen sink is leaking',
+    'Water drips from the pipe under the sink. I put a bucket under it for now.', c_tenant_a, now() - interval '2 days'
+  from public.tenancies tc
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000001' and tc.status = 'active'
+  returning id into v_sink;
+
+  insert into public.maintenance_updates (request_id, author_id, body, created_at)
+  values (v_sink, c_tenant_a, 'It got worse this morning. Please send someone soon.', now() - interval '1 day');
+
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'air_conditioning', 'AC not cooling',
+    'The bedroom AC runs but blows warm air.', now() - interval '5 days'
+  from public.tenancies tc
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000002' and tc.status = 'active'
+  returning id into v_ac;
+
+  update public.maintenance_requests set status = 'in_progress', assigned_to = 'CoolTech Services' where id = v_ac;
+  insert into public.maintenance_updates (request_id, author_id, body, is_internal, created_at) values
+    (v_ac, c_landlord_a, 'CoolTech quoted 3,500 for a gas refill. Approved.', true, now() - interval '3 days'),
+    (v_ac, c_landlord_a, 'A technician from CoolTech will visit on Saturday morning.', false, now() - interval '3 days');
+
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'door_lock', 'Front door lock is jammed', '', now() - interval '20 days'
+  from public.tenancies tc
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000004' and tc.status = 'active'
+  returning id into v_lock;
+  update public.maintenance_requests set status = 'resolved' where id = v_lock;
+
+  -- Status rows are stamped now() by the trigger; backdate them to fit the story.
+  update public.maintenance_updates set created_at = now() - interval '4 days'
+  where request_id = v_ac and status_to is not null;
+  update public.maintenance_updates set created_at = now() - interval '18 days'
+  where request_id = v_lock and status_to is not null;
+  update public.maintenance_requests set resolved_at = now() - interval '18 days' where id = v_lock;
+
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'internet', 'No internet since yesterday', '', now() - interval '1 day'
+  from public.tenancies tc
+  where tc.tenant_id = 'dddddddd-0000-0000-0000-000000000001' and tc.status = 'active';
+end;
+$$;
+
+-------------------------------------------------------------------------------
+-- Notices (Phase 6). Tanvir (tenant.a, Green View A1) should see exactly:
+--   "Water supply interruption" (all, already read), "Lift maintenance on
+--   Friday" (Green View), "Rooftop access for unit A1" (units: A1).
+-- Hidden from him: the A2-only notice, the expired and scheduled ones, and B's.
+-------------------------------------------------------------------------------
+
+do $$
+declare
+  v_org_a uuid := (select org_id from public.organization_members where user_id = '11111111-1111-1111-1111-111111111111');
+  v_org_b uuid := (select org_id from public.organization_members where user_id = '22222222-2222-2222-2222-222222222222');
+  v_water uuid;
+  v_rooftop uuid;
+  v_a2 uuid;
+begin
+  insert into public.notices (org_id, title, body, audience, publish_at, expires_at, created_by)
+  values (v_org_a, 'Water supply interruption',
+    'Water will be off on Sunday from 10am to 2pm for tank cleaning. Please store water in advance.',
+    'all', now() - interval '1 day', now() + interval '3 days', '11111111-1111-1111-1111-111111111111')
+  returning id into v_water;
+
+  insert into public.notices (org_id, title, body, audience, property_id, publish_at, created_by)
+  values (v_org_a, 'Lift maintenance on Friday',
+    'The lift at Green View Tower will be out of service on Friday between 9am and 1pm.',
+    'property', 'aaaaaaaa-0000-0000-0000-000000000001', now() - interval '2 hours', '11111111-1111-1111-1111-111111111111');
+
+  insert into public.notices (org_id, title, body, audience, publish_at, created_by)
+  values (v_org_a, 'Rooftop access for unit A1',
+    'Your rooftop key is ready. Please collect it from the caretaker.',
+    'units', now() - interval '3 hours', '11111111-1111-1111-1111-111111111111')
+  returning id into v_rooftop;
+  insert into public.notice_units (notice_id, unit_id, org_id)
+  select v_rooftop, id, org_id from public.units
+  where property_id = 'aaaaaaaa-0000-0000-0000-000000000001' and unit_number = 'A1';
+
+  insert into public.notices (org_id, title, body, audience, publish_at, created_by)
+  values (v_org_a, 'Balcony repair for unit A2', 'Workers will repair the A2 balcony railing on Monday.',
+    'units', now() - interval '1 hour', '11111111-1111-1111-1111-111111111111')
+  returning id into v_a2;
+  insert into public.notice_units (notice_id, unit_id, org_id)
+  select v_a2, id, org_id from public.units
+  where property_id = 'aaaaaaaa-0000-0000-0000-000000000001' and unit_number = 'A2';
+
+  insert into public.notices (org_id, title, body, audience, publish_at, expires_at, created_by) values
+    (v_org_a, 'Eid holiday office hours', 'The office is closed during the Eid holidays.',
+      'all', now() - interval '30 days', now() - interval '20 days', '11111111-1111-1111-1111-111111111111'),
+    (v_org_a, 'New parking rules', 'From next week, each flat gets one marked parking space.',
+      'all', now() + interval '5 days', null, '11111111-1111-1111-1111-111111111111');
+
+  insert into public.notices (org_id, title, body, audience, publish_at, created_by)
+  values (v_org_b, 'Gas line inspection', 'Titas Gas will inspect all lines on Thursday.',
+    'all', now() - interval '1 day', '22222222-2222-2222-2222-222222222222');
+
+  insert into public.notice_reads (notice_id, user_id) values (v_water, '33333333-3333-3333-3333-333333333333');
+end;
+$$;

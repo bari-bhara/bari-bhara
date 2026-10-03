@@ -7,19 +7,29 @@ import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChargeStatusBadge } from "@/features/charges/components/charge-status-badge";
+import { chargeHref } from "@/features/charges/components/charges-list";
+import { getTenantChargeSummary } from "@/features/charges/queries";
+import { RemindersList } from "@/features/notifications/components/reminders-list";
+import { listReminders } from "@/features/notifications/queries";
 import { InvitePanel } from "@/features/tenants/components/invite-panel";
 import { MoveOutDialog } from "@/features/tenants/components/move-out-dialog";
 import { TenancyHistory } from "@/features/tenants/components/tenancy-history";
 import { TenancyStatusBadge } from "@/features/tenants/components/tenancy-status-badge";
 import { getTenant } from "@/features/tenants/queries";
 import { getCurrentOrganization } from "@/lib/dal";
-import { formatDate, formatDay, formatMoney, todayIn } from "@/lib/format";
+import { formatDate, formatDay, formatMoney, formatMonth, todayIn } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Tenant" };
 
 export default async function TenantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [tenant, organization] = await Promise.all([getTenant(id), getCurrentOrganization()]);
+  const [tenant, organization, balance, reminders] = await Promise.all([
+    getTenant(id),
+    getCurrentOrganization(),
+    getTenantChargeSummary(id),
+    listReminders({ tenantId: id }),
+  ]);
   if (!tenant) notFound();
 
   const currency = organization?.currency ?? "BDT";
@@ -94,6 +104,39 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
 
         <Card>
           <CardHeader>
+            <CardTitle>Balance</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div>
+              <p className="text-2xl font-semibold tabular-nums">
+                {formatMoney(balance.outstanding, currency)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {balance.overdue > 0
+                  ? `${formatMoney(balance.overdue, currency)} overdue`
+                  : "Nothing overdue"}
+              </p>
+            </div>
+            {balance.recent.length > 0 && (
+              <ul className="divide-y" aria-label="Recent charges">
+                {balance.recent.map((charge) => (
+                  <li key={charge.id} className="flex items-center justify-between gap-3 py-2">
+                    <Link href={chargeHref(charge)} className="min-w-0 truncate text-sm hover:underline">
+                      {charge.type_label} · {formatMonth(charge.billing_month)}
+                    </Link>
+                    <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">
+                      {formatMoney(charge.amount, currency)}
+                      <ChargeStatusBadge status={charge.effective_status} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Contact</CardTitle>
           </CardHeader>
           <CardContent>
@@ -147,6 +190,15 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                 tenant.pendingInvite ? formatDate(tenant.pendingInvite.expires_at, timezone) : null
               }
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RemindersList reminders={reminders} timeZone={timezone} />
           </CardContent>
         </Card>
 
