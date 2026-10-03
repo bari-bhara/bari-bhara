@@ -8,3 +8,7 @@ export const DB_TENANCY_FROZEN = "BB002";
 export const DB_OCCUPANCY_MISMATCH = "BB003";
 export const DB_NOT_FOUND = "BB004";
 export const DB_ALREADY_LINKED = "BB005";
+export const DB_CHARGE_VOID = "BB006";
+export const DB_CHARGE_HAS_PAYMENTS = "BB007";
+export const DB_OVERPAYMENT = "BB008";
+export const DB_PAYMENT_ALREADY_VOID = "BB009";

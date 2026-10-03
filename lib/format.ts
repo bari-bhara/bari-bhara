@@ -54,3 +54,18 @@ export function formatDay(day: string) {
   const [year, month, date] = day.split("-").map(Number);
   return formatDate(new Date(Date.UTC(year, month - 1, date)), "UTC");
 }
+
+/** "2026-10" or "2026-10-01" → "October 2026". */
+export function formatMonth(month: string) {
+  const [year, m] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat(LOCALE, { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, m - 1, 1)),
+  );
+}
+
+/** "2026-10" moved by `delta` months, e.g. shiftMonth("2026-01", -1) → "2025-12". */
+export function shiftMonth(month: string, delta: number) {
+  const [year, m] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, m - 1 + delta, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}

@@ -20,7 +20,7 @@ import type { ActionResult } from "@/lib/action-result";
  * shows its error as a toast, or `successMessage` when it returns ok.
  * Actions that redirect on success navigate away instead.
  */
-export function ConfirmDialog({
+export function ConfirmDialog<T = undefined>({
   trigger,
   title,
   description,
@@ -36,8 +36,9 @@ export function ConfirmDialog({
   confirmLabel: string;
   pendingLabel?: string;
   destructive?: boolean;
-  successMessage?: string;
-  onConfirm: () => Promise<ActionResult | undefined>;
+  /** Toast after success; a function gets the action's returned data. */
+  successMessage?: string | ((data: T) => string);
+  onConfirm: () => Promise<ActionResult<T> | undefined>;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -50,7 +51,13 @@ export function ConfirmDialog({
         setOpen(false);
         return;
       }
-      if (successMessage) toast.success(successMessage);
+      if (successMessage) {
+        toast.success(
+          typeof successMessage === "function"
+            ? successMessage((result as { data: T }).data)
+            : successMessage,
+        );
+      }
       setOpen(false);
     });
   }
