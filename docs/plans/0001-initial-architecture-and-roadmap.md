@@ -342,6 +342,73 @@ Branch `feature/rent-management` from `main`. Follows [ADR 0004](../adr/0004-uni
    - Landlord B sees none of A's charges.
 5. **Docs:** `architecture/database.md`, tick Phase 4, changelog.
 
+### Phase 5 detail (Maintenance)
+Branch `feature/maintenance`, **stacked on `feature/rent-management`** (Phase 4 isn't merged yet, and both phases append to the seed and docs). Merge order: 4 → 5 → 6.
+
+1. **Migration `…_maintenance.sql`**
+   - Enums: `maintenance_category` (plumbing, electrical, air_conditioning, water, door_lock, internet, appliance, other) and `maintenance_status` (pending, in_progress, resolved, cancelled).
+   - `maintenance_requests`: `org_id`, `unit_id` (composite FK), `tenancy_id`, `tenant_id` (nullable, for landlord-raised issues), `created_by`, `category`, `title` (3–120), `description` (≤2000), `status`, `assigned_to` (≤120, e.g. a plumber's name), `resolved_at`, timestamps. No landlord-only columns, so tenants read their own requests directly (ADR 0007).
+   - `maintenance_updates`: `org_id`, `request_id`, `author_id`, `body` (≤2000), `is_internal`, `status_from`, `status_to`, `created_at`.
+     - A before trigger fills `org_id` and `author_id`.
+     - Users can't write `status_*`. Status changes on a request add a row automatically (security-definer trigger), giving the request its history.
+     - Tenants see and post only non-internal rows on their own requests.
+   - `maintenance_photos`: `org_id`, `request_id`, `storage_path` (unique, must be `{org_id}/{request_id}/…`), `uploaded_by`, `created_at`. At most 6 per request.
+   - Storage: private bucket `maintenance-photos` (5 MB; jpeg/png/webp), created by the migration so hosted gets it too. `storage.objects` policies use `private.can_access_maintenance_request(request_id)` (org member, or the tenant who owns the request) on the path's second folder, and check that the first folder is the request's org. Photos are served through short-lived signed URLs.
+   - RPCs (definer):
+     - `create_maintenance_request(p_tenancy_id, p_category, p_title, p_description)`: the caller must be the tenant of that **active** tenancy. Status is always `pending`.
+     - `cancel_maintenance_request(p_request_id)`: the requesting tenant can cancel only while `pending`.
+   - Landlords insert and update requests directly under RLS (any status change; `resolved_at` is kept in sync).
+   - View `maintenance_overview` (`security_invoker`): requests + tenant, unit and property names + photo count, for landlord lists.
+   - Activity: `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED`.
+   - Seed: a pending request with a comment, an in-progress one with an internal note, a resolved one, and one in landlord B's org.
+2. **Landlord UI** (`features/maintenance/`)
+   - `/maintenance`: open/pending/in progress/resolved/cancelled/all filters (default *open*), property and category filters, newest first.
+   - `/maintenance/new`: raise an issue for any unit.
+   - `/maintenance/[id]`: details, photos, change status (with an optional note), assign, timeline, comment or internal note, add photos.
+3. **Tenant UI**
+   - `/tenant/maintenance`: their requests plus "Report a problem".
+   - `/tenant/maintenance/new`: home (if several), category, title, description, photos. The browser uploads straight to Storage, then the server records the paths.
+   - `/tenant/maintenance/[id]`: details, photos, public timeline, comment, cancel while pending.
+4. **Tests (E2E):**
+   - A tenant reports an issue with a photo and the landlord sees it.
+   - The landlord moves it to in progress with an internal note and a public comment; the tenant sees the comment and status but **not the internal note**.
+   - The tenant can cancel only while pending.
+   - Landlord B and another tenant can't see the request.
+
+### Phase 6 detail (Notices)
+Branch `feature/notices`, stacked on `feature/maintenance`.
+
+1. **Migration `…_notices.sql`**
+   - Enum `notice_audience` (`all|property|units`).
+   - `notices`:
+     - Columns: `org_id`, `title` (1–150), `body` (≤5000), `audience`, `property_id` (composite FK), `publish_at` (default now), `expires_at`, `created_by`, timestamps.
+     - Checks: `property_id` set ⇔ audience `property`; `expires_at > publish_at`.
+   - `notice_units` (`notice_id`, `unit_id`, `org_id`; composite FKs, cascade on notice delete). Rows only for audience `units`.
+   - `notice_reads` (`notice_id`, `user_id`) PK + `read_at`.
+   - `private.can_see_notice(notice_id)` (definer): published, not expired, and the caller has an **active** tenancy matching the audience. It's evaluated live, so a tenant who moves in later sees current notices with no fan-out rows.
+   - RPC `create_notice(p_title, p_body, p_audience, p_property_id, p_unit_ids uuid[], p_publish_at, p_expires_at)` (invoker): notice + units atomically. It validates that the targets belong to the org, and that the units list is non-empty for `units`.
+   - View `my_notices` (`security_invoker`): notices + `is_read` for the caller. Tenants only get notices they can see.
+   - RLS:
+     - Members get full CRUD on notices; `notice_units` is members only.
+     - Tenants can select notices where `can_see_notice`.
+     - `notice_reads`: tenants can insert and select their own rows for visible notices; members can select reads on their org's notices (for read counts).
+   - Activity: `NOTICE_CREATED`.
+   - Seed: landlord A has an all-tenants notice, a Green View property notice, a units notice for A1, an expired one and a scheduled one; landlord B has one notice. `tenant.a` has read one.
+2. **Landlord UI** (`features/notices/`)
+   - `/notices`: list with Scheduled / Live / Expired, audience summary and read count.
+   - `/notices/new`: title, body, audience (all / one property / chosen units), publish and expiry.
+   - `/notices/[id]`: view, read count, delete. There's no edit; delete and re-create instead.
+3. **Tenant UI**
+   - `/tenant/notices`: inbox with unread markers.
+   - `/tenant/notices/[id]`: opening it marks it read (a client effect calls an action, so link prefetching can't mark notices read).
+   - Unread badge on the Notices nav item, rendered in the nav's Suspense boundary.
+   - The tenant dashboard shows the unread count.
+4. **Tests (E2E):**
+   - Targeting: a property notice reaches tenant A; a units notice for a different unit doesn't; expired and scheduled notices are hidden; B's notices are never shown.
+   - Opening a notice clears its unread badge.
+   - Delete works.
+5. **Docs (both phases):** `architecture/database.md`, tick Phases 5 and 6, changelog.
+
 ---
 
 ## 5. Risks & mitigations
