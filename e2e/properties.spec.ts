@@ -32,6 +32,8 @@ test.describe("landlord manages properties and units", () => {
   });
 
   test("creates a property, adds and edits a unit, filters by status", async ({ page }) => {
+    // Many steps; under a full parallel run against `next dev` it can pass 30s.
+    test.slow();
     const name = uniqueName("E2E Tower");
     await createProperty(page, name);
     await expect(page.getByText("No units yet")).toBeVisible();

@@ -2,14 +2,14 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-03
-- **Related ADRs:** [0001](../adr/0001-supabase-as-backend.md) · [0002](../adr/0002-tenant-onboarding-via-invite-code.md) · [0003](../adr/0003-org-based-multi-tenancy-and-rls.md) · [0004](../adr/0004-unified-charges-table-and-derived-overdue.md) · [0005](../adr/0005-notifications-provider-interface-resend.md) · [0006](../adr/0006-local-supabase-cli-workflow.md)
+- **Related ADRs:** [0001](../adr/0001-supabase-as-backend.md) · [0002](../adr/0002-tenant-onboarding-via-invite-code.md) · [0003](../adr/0003-org-based-multi-tenancy-and-rls.md) · [0004](../adr/0004-unified-charges-table-and-derived-overdue.md) · [0005](../adr/0005-notifications-provider-interface-resend.md) · [0006](../adr/0006-local-supabase-cli-workflow.md) · [0007](../adr/0007-tenant-reads-through-safe-functions.md)
 - **Database reference:** [architecture/database.md](../architecture/database.md)
 
 ### Progress
 - [x] 0. Project documentation
 - [x] 1. Foundation
 - [x] 2. Properties
-- [ ] 3. Tenants
+- [x] 3. Tenants
 - [ ] 4. Rent & bills
 - [ ] 5. Maintenance
 - [ ] 6. Notices
@@ -256,6 +256,45 @@ Branch `feature/property-management` from `main`. Small commits: db → feature 
 6. **Tests (E2E):** landlord A creates a property, adds a unit, edits it, filters by status; duplicate unit number shows a field error; landlord B sees none of A's properties and gets a 404 on A's property URL; tenant is redirected away from `/properties`.
 7. **Docs:** update `architecture/database.md` (tables, view, policies), tick Phase 2, changelog.
 
+### Phase 3 detail (Tenants, tenancies & invites)
+Branch `feature/tenant-management` from `main`. Commits: db → feature code/UI → tenant portal → tests → docs.
+
+1. **Migration `…_tenants_and_tenancies.sql`**
+   - Enum `tenancy_status` (`active|moved_out`).
+   - `tenants`: `org_id`, `full_name` (1–120), `phone` (≤30), `email` (≤254), `notes` (≤1000, landlord-only), `user_id` → auth.users (nullable, set only by the claim RPC), timestamps. `unique (org_id, id)`, `unique (org_id, user_id)`, index `user_id`, index `(org_id, full_name)`.
+   - `tenancies`: `org_id`, `tenant_id`, `unit_id` (composite FKs to `tenants`/`units` `(org_id, id)`, **on delete restrict**), `monthly_rent`, `security_deposit` (`numeric(12,2)` ≥ 0), `move_in_date`, `move_out_date`, `move_out_reason` (≤120), `move_out_notes` (≤1000, landlord-only), `status`, `created_by`, timestamps. Checks: `move_out_date >= move_in_date`; `status = 'moved_out'` ⇔ `move_out_date is not null`. Partial unique index: one active tenancy per unit. No delete grant: history is never deleted.
+   - Guard trigger: a tenancy can only go `active → moved_out`; a moved-out tenancy's dates, rent, unit and tenant are frozen. New tenancies are rejected for `inactive` units and archived properties.
+   - **Occupancy:** after insert/update on `tenancies`, the unit becomes `occupied` while it has an active tenancy, and `vacant` when the last one ends. A `units` trigger enforces the invariant `status = 'occupied'` ⇔ an active tenancy exists, so `occupied` can't be hand-set even through the API.
+   - `tenant_invites`: `org_id`, `tenant_id` (cascade), `code_hash` (sha256 hex, unique), `expires_at` (7 days), `used_at`, `used_by`, `created_by`, `created_at`. Landlords can select every column except `code_hash`; there are no write grants.
+   - `private.invite_claim_failures` (`user_id`, `failed_count`, `last_failed_at`): 10 failures lock claiming for 24 hours, and a success resets the count.
+   - `activity_log`: `org_id`, `actor_id`, `event_type`, `entity_type`, `entity_id`, `metadata`, `created_at`, index `(org_id, created_at desc)`. Members can select it; only security-definer triggers and RPCs write to it. Events this phase: `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`.
+   - RPCs:
+     - `add_tenant(...)` (invoker): creates the tenant and the first tenancy atomically under the caller's RLS.
+     - `create_tenant_invite(tenant_id)` (definer, checks org membership): generates a 10-character Crockford base32 code from `gen_random_bytes`, stores only its hash, replaces any unused code, and returns the plaintext once.
+     - `claim_tenant_invite(code)` (definer): normalizes the code (uppercase, strip spaces/dashes, `O→0`, `I/L→1`). It returns a status (`linked|invalid|locked|not_tenant|already_linked`) instead of raising, so the failure counter isn't rolled back.
+     - `my_tenancies()` (definer): the caller's tenancies with **only tenant-safe columns** (see ADR 0007).
+   - View `tenant_overview` (`security_invoker`): each tenant with their current (or latest) tenancy, unit and property, and `has_login`. It backs the tenant list.
+   - Tenants get **no direct RLS read access** to `tenants`, `tenancies`, `units` or `properties`, which contain landlord-only notes ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)).
+   - Seed: landlord A has 3 active tenancies (one linked to `tenant.a`) and 1 moved-out tenancy. Landlord B has 1 active tenancy plus an unlinked tenant with a known local-only invite code for manual testing.
+2. **Landlord UI** (`features/tenants/`)
+   - `/tenants`: search by name/phone/email (`?q=`), filter current/past (`?status=`) and property, sort (name, newest, move-in), 20 per page.
+   - `/tenants/new`: tenant details + vacant unit picker + rent (prefilled from the unit's default rent) + deposit + move-in date. `?unitId=` preselects the unit.
+   - `/tenants/[id]`: contact details, app access (connected / invite code with expiry / create or replace code, shown once with copy), current tenancy with **Move out** (date ≤ today, reason, notes), tenancy history, and "Move into a unit" when there's no active tenancy.
+   - `/tenants/[id]/edit`, `/tenants/[id]/move-in`.
+   - Unit detail shows the current tenant and the unit's tenancy history, with "Add tenant" when the unit is available.
+   - Archiving a property with active tenancies is refused.
+3. **Tenant portal**
+   - Move the tenant pages under `app/tenant/(portal)/`, whose layout requires a linked tenant (`my_tenancies()` non-empty) and otherwise redirects to `/tenant/join`.
+   - `/tenant/join`: enter the invite code, with friendly messages per status.
+   - The tenant dashboard shows their home(s): property, unit, rent, due day, move-in date and landlord name.
+4. **Tests (E2E):**
+   - Landlord adds a tenant to a vacant unit; the unit becomes occupied; search/filter finds them.
+   - Move-out keeps history and frees the unit.
+   - Landlord creates an invite, a new tenant signs up, is sent to `/tenant/join`, claims the code and sees their home. A reused code is rejected.
+   - Landlord B can't see A's tenants.
+   - Tenant signup now lands on `/tenant/join`.
+5. **Docs:** ADR 0007, `architecture/database.md`, tick Phase 3, changelog.
+
 ---
 
 ## 5. Risks & mitigations
@@ -293,3 +332,12 @@ Branch `feature/property-management` from `main`. Small commits: db → feature 
   - Fixed two Phase 1 latent bugs exposed by the first dynamic routes: the shell navs called `usePathname()` outside `<Suspense>` (blocks prerendering under `cacheComponents`), and Tailwind's `content` didn't scan `features/`.
   - `notFound()` from a page inside the layout's Suspense boundary streams the 404 UI with HTTP 200. Tests assert the rendered 404, not the status. A proper `not-found.tsx` belongs to Phase 9.
   - Next 16 keeps visited routes mounted but hidden, so E2E tests use role queries or `filter({ visible: true })` instead of bare `getByText` counts.
+- 2026-10-03: Phase 3 done (branch `feature/tenant-management`). Decisions made during implementation:
+  - **Tenant reads go through `my_tenancies()`**, not RLS on base tables, because RLS can't hide landlord-only columns such as `notes` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). This replaces the tenant read policies listed in §3. `private.user_tenant_ids()` moves to Phase 4, where it's first needed.
+  - Occupancy is an invariant enforced by a `units` trigger (`occupied` ⇔ an active tenancy exists), not just synced. Hand-setting it fails even through the API.
+  - Tenants and tenancies have no delete grant. A tenant can move into another unit after moving out; "add tenant" always creates the first tenancy.
+  - The invite claim lockout is 10 failures, then 24 hours from the last failure. Codes are Crockford base32 and normalized on entry. The landlord can replace a code at any time; the old one stops working.
+  - The tenant portal moved to `app/tenant/(portal)/`. Its layout requires a linked home; unlinked tenants (including new signups) land on `/tenant/join`.
+  - Move-out dates can't be in the future (no scheduled move-outs in v1).
+  - Fixed a mobile layout bug: in grid layouts, `truncate` text and the chip rows widened the page, which pushed the fixed bottom nav off-screen. List grids now use `grid-cols-1`, and chip rows scroll inside their own box.
+  - Database tests stay manual (per the no-unit-tests decision). The occupancy, guard, invite, lockout and isolation rules were exercised in SQL against the seed in a rolled-back transaction; the E2E suite covers the UI flows.

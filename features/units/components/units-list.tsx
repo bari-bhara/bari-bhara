@@ -34,7 +34,7 @@ export function UnitsList({
 }) {
   return (
     <>
-      <ul className="grid gap-2 md:hidden">
+      <ul className="grid grid-cols-1 gap-2 md:hidden">
         {units.map((unit) => (
           <li key={unit.id}>
             <Link

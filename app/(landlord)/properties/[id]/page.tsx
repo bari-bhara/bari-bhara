@@ -112,7 +112,7 @@ export default async function PropertyPage({
             }
           />
         ) : (
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <UnitStatusFilter
               basePath={`/properties/${property.id}`}
               current={status}

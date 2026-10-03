@@ -47,3 +47,23 @@ export const money = (message = "Enter an amount like 15000 or 15000.50.") =>
  * rejects valid ids such as the fixed ones in seed.sql.
  */
 export const id = z.guid("Invalid id.");
+
+/** A "YYYY-MM-DD" date from <input type="date">. */
+export const isoDate = (message = "Enter a valid date.") =>
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, message)
+    .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), message);
+
+export const optionalEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254, "Use 254 characters or fewer.")
+  .refine((value) => value === "" || z.email().safeParse(value).success, "Enter a valid email address.");
+
+export const optionalPhone = z
+  .string()
+  .trim()
+  .max(30, "Use 30 characters or fewer.")
+  .regex(/^(\+?[\d\s-]{6,})?$/, "Enter a phone number like +8801711000000.");
