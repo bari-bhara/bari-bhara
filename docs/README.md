@@ -9,6 +9,7 @@ This folder is the single source of truth for how Bari_bhara is planned, designe
 | [`plans/`](plans/) | Implementation plans and roadmaps: scope, phases, verification | **Living.** Update the progress checkboxes and changelog as work lands |
 | [`adr/`](adr/) | Architecture Decision Records: one significant decision per file | **Immutable once Accepted.** To change a decision, write a new ADR and mark the old one `Superseded by NNNN` |
 | [`architecture/`](architecture/) | Current-state reference docs (database, auth flow, etc.) | **Living.** Keep in sync with the code and migrations |
+| [`runbooks/`](runbooks/) | Step-by-step operational procedures (deploying, releasing, rolling back) | **Living.** Update when a hosted setting or step changes |
 
 ## Index
 
@@ -26,6 +27,10 @@ This folder is the single source of truth for how Bari_bhara is planned, designe
 
 ### Architecture reference
 - [Database](architecture/database.md)
+- [Security](architecture/security.md): the model, review results, known gaps, and how to re-check
+
+### Runbooks
+- [Deployment](runbooks/deployment.md): one-time setup, releasing, rollback
 
 ## Conventions
 

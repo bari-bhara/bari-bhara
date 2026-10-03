@@ -58,7 +58,8 @@ Other local services: Supabase Studio at http://127.0.0.1:54323 and Mailpit (cap
 | `pnpm db:reset` | Recreate the local DB from migrations + `supabase/seed.sql` |
 | `pnpm db:lint` | Schema lint + security/performance advisors |
 | `pnpm db:types` | Regenerate `lib/supabase/database.types.ts` |
-| `pnpm test:e2e` | Playwright tests (mobile 390px + desktop 1440px) against local Supabase |
+| `pnpm test:e2e` | Playwright tests (mobile 390px + desktop 1440px) against local Supabase, including axe accessibility scans |
+| `pnpm test:smoke` | Read-only smoke test of a deployed site: `SMOKE_BASE_URL=https://… pnpm test:smoke` |
 
 ## Database changes
 
@@ -80,6 +81,10 @@ Never change the hosted database outside migrations. See [ADR 0006](docs/adr/000
 
 Auth settings (Site URL, redirect URLs, the custom access token hook, SMTP) are configured in the Supabase dashboard, not by this workflow.
 
+## Deploying
+
+The full first-time setup (Supabase, Resend, GitHub, Vercel) and the release checklist are in the [deployment runbook](docs/runbooks/deployment.md). Security checks and known gaps are in [docs/architecture/security.md](docs/architecture/security.md).
+
 ## Project structure
 
 ```
@@ -90,5 +95,5 @@ features/<domain>/ actions, schemas, components per domain
 lib/               supabase clients, DAL, routing rules, helpers
 supabase/          config, migrations, seed
 e2e/               Playwright specs
-docs/              plans, ADRs, architecture reference
+docs/              plans, ADRs, architecture reference, runbooks
 ```

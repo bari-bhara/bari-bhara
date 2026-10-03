@@ -634,4 +634,12 @@ Branch `feature/deployment`, stacked on `feature/polish`. The work splits in two
   - Paginated lists: landlord notices and maintenance (the old silent cap at 200 is gone), and the tenant's requests, notices, payments and paid rent history (20 per page, `lib/pagination.ts`). Open charges stay on one page. List queries skip notice bodies and request descriptions. Existing indexes cover the new orderings, so there's no migration.
   - The axe scans run on the desktop project only, since the markup is the same on both. The error boundary was checked by temporarily throwing in a page (shell intact, reference shown, Try again works).
   - Under full parallel load, three existing tests raced the dev server. They now wait for the event they depend on, and the expect timeout is 10s.
+- 2026-10-03: Phase 10 repo work done (branch `feature/deployment`, stacked on `feature/polish`). **The Phase 10 box stays unticked** until the production steps in the [runbook](../runbooks/deployment.md) are done and the production smoke test passes. Decisions made during implementation:
+  - Added `docs/runbooks/` for operational procedures, and `architecture/security.md` for the security model and review.
+  - The security review found no database issues. All checks were catalog queries against the local stack, plus lint, advisors and `pnpm audit`. Recorded gaps: no script CSP, no pgTAP, no cooldown on single reminders, no app-level rate limiting.
+  - Security headers come from `next.config.ts` for every path. The CSP leaves out `script-src`, because nonces would make every page dynamic under Cache Components.
+  - `RESEND_API_KEY` without `EMAIL_FROM` is now a configuration failure, not a placeholder sender.
+  - `pnpm test:smoke` (`playwright.smoke.config.ts`, `e2e/smoke/`) is read-only and needs `SMOKE_BASE_URL`. The main E2E config ignores it.
+  - Verified with a production build (`next build` and `next start` against the local stack): 118/118 E2E and 12/12 smoke tests pass.
+  - Preview deployments must not use the production database. The runbook says to leave Preview env vars unset, or to use a staging project.
 
