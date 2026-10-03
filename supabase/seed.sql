@@ -124,3 +124,71 @@ insert into public.tenant_invites (org_id, tenant_id, code_hash, expires_at)
 select org_id, id, encode(extensions.digest('B4R1BH4RA5', 'sha256'), 'hex'), now() + interval '30 days'
 from public.tenants
 where id = 'dddddddd-0000-0000-0000-000000000002';
+
+-------------------------------------------------------------------------------
+-- Rent, bills & payments (Phase 4). Relative to current_date so the
+-- previous month's unpaid charges are always overdue.
+--   m2 = two months ago, m1 = last month, m0 = this month
+-- Landlord A:
+--   Tanvir (A1, 18000): m2 paid, m1 paid, m0 partly paid (10000);
+--                       m1 electricity bill 2350 unpaid → overdue
+--   Rahim  (A2, 25000): m2 paid (plus one voided duplicate payment);
+--                       m1 unpaid → overdue; m0 unpaid; m1 water bill paid
+--   Nusrat (1A, 15000): m2, m1 paid; m0 unpaid
+-- Landlord B:
+--   Imran   (101, 40000): m2, m1 paid; m0 unpaid
+--   Farzana (102, 40000): moved in this Sept; m1 partly paid (20000)
+-------------------------------------------------------------------------------
+
+do $$
+declare
+  m0 date := date_trunc('month', current_date)::date;
+  m1 date := (date_trunc('month', current_date) - interval '1 month')::date;
+  m2 date := (date_trunc('month', current_date) - interval '2 months')::date;
+  v_duplicate_id uuid;
+begin
+  perform public.generate_monthly_rent(m2);
+  perform public.generate_monthly_rent(m1);
+  perform public.generate_monthly_rent(m0);
+
+  insert into public.charges (org_id, tenancy_id, charge_type_id, billing_month, amount, due_date, description)
+  select tc.org_id, tc.id, ct.id, m1, v.amount, m1 + 24, v.description
+  from (values
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'electricity', 2350, 'Meter reading 10452'),
+    ('cccccccc-0000-0000-0000-000000000002'::uuid, 'water',        600, '')
+  ) as v (tenant_id, type_key, amount, description)
+  join public.tenancies tc on tc.tenant_id = v.tenant_id and tc.status = 'active'
+  join public.charge_types ct on ct.org_id is null and ct.key = v.type_key;
+
+  -- A duplicate entry for Rahim's m2 rent, recorded then voided (before the real one).
+  insert into public.payments (org_id, charge_id, amount, paid_on, method, reference)
+  select c.org_id, c.id, 25000, m2 + 5, 'cash', ''
+  from public.charges c
+  join public.tenancies tc on tc.id = c.tenancy_id
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000002' and c.category = 'rent' and c.billing_month = m2
+  returning id into v_duplicate_id;
+
+  update public.payments
+  set voided_at = now(), void_reason = 'Recorded twice'
+  where id = v_duplicate_id;
+
+  insert into public.payments (org_id, charge_id, amount, paid_on, method, reference)
+  select c.org_id, c.id, v.amount, c.billing_month + v.day_offset, v.method::public.payment_method, v.reference
+  from (values
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'rent',  m2, 18000, 3, 'cash',          ''),
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'rent',  m1, 18000, 4, 'bkash',         'BK7Q2M1X'),
+    ('cccccccc-0000-0000-0000-000000000001'::uuid, 'rent',  m0, 10000, 1, 'bkash',         'BK9P4L2Z'),
+    ('cccccccc-0000-0000-0000-000000000002'::uuid, 'rent',  m2, 25000, 5, 'bank_transfer', 'DBBL-55120'),
+    ('cccccccc-0000-0000-0000-000000000002'::uuid, 'water', m1,   600, 26, 'cash',         ''),
+    ('cccccccc-0000-0000-0000-000000000004'::uuid, 'rent',  m2, 15000, 2, 'nagad',         'NG-30091'),
+    ('cccccccc-0000-0000-0000-000000000004'::uuid, 'rent',  m1, 15000, 3, 'nagad',         'NG-31447'),
+    ('dddddddd-0000-0000-0000-000000000001'::uuid, 'rent',  m2, 40000, 4, 'bank_transfer', 'CITY-8812'),
+    ('dddddddd-0000-0000-0000-000000000001'::uuid, 'rent',  m1, 40000, 4, 'bank_transfer', 'CITY-9020'),
+    ('dddddddd-0000-0000-0000-000000000002'::uuid, 'rent',  m1, 20000, 6, 'cash',          '')
+  ) as v (tenant_id, type_key, billing_month, amount, day_offset, method, reference)
+  join public.tenancies tc on tc.tenant_id = v.tenant_id and tc.status = 'active'
+  join public.charge_types ct on ct.org_id is null and ct.key = v.type_key
+  join public.charges c on c.tenancy_id = tc.id and c.charge_type_id = ct.id and c.billing_month = v.billing_month;
+
+end;
+$$;

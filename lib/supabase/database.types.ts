@@ -24,6 +24,56 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"charge_types": {
+                  Row: {
+                    "category": Database["public"]['Enums']["charge_category"],"created_at": string,"id": string,"key": string,"label": string,"org_id": string | null
+                  }
+                  Insert: {
+                    "category": Database["public"]['Enums']["charge_category"],"created_at"?: string,"id"?: string,"key": string,"label": string,"org_id"?: string | null
+                  }
+                  Update: {
+                    "category"?: Database["public"]['Enums']["charge_category"],"created_at"?: string,"id"?: string,"key"?: string,"label"?: string,"org_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "charge_types_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"charges": {
+                  Row: {
+                    "amount": number,"amount_paid": number,"billing_month": string,"category": Database["public"]['Enums']["charge_category"],"charge_type_id": string,"created_at": string,"created_by": string | null,"description": string,"due_date": string,"id": string,"org_id": string,"status": Database["public"]['Enums']["charge_status"],"tenancy_id": string,"unit_id": string,"updated_at": string,"void_reason": string,"voided_at": string | null
+                  }
+                  Insert: {
+                    "amount": number,"amount_paid"?: number,"billing_month": string,"category": Database["public"]['Enums']["charge_category"],"charge_type_id": string,"created_at"?: string,"created_by"?: string | null,"description"?: string,"due_date": string,"id"?: string,"org_id": string,"status"?: Database["public"]['Enums']["charge_status"],"tenancy_id": string,"unit_id": string,"updated_at"?: string,"void_reason"?: string,"voided_at"?: string | null
+                  }
+                  Update: {
+                    "amount"?: number,"amount_paid"?: number,"billing_month"?: string,"category"?: Database["public"]['Enums']["charge_category"],"charge_type_id"?: string,"created_at"?: string,"created_by"?: string | null,"description"?: string,"due_date"?: string,"id"?: string,"org_id"?: string,"status"?: Database["public"]['Enums']["charge_status"],"tenancy_id"?: string,"unit_id"?: string,"updated_at"?: string,"void_reason"?: string,"voided_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "charges_charge_type_id_fkey"
+      columns: ["charge_type_id"]
+isOneToOne: false
+      referencedRelation: "charge_types"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "charges_org_id_tenancy_id_fkey"
+      columns: ["org_id","tenancy_id"]
+isOneToOne: false
+      referencedRelation: "tenancies"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "charges_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"org_id": string,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
@@ -61,6 +111,37 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"payments": {
+                  Row: {
+                    "amount": number,"charge_id": string,"created_at": string,"id": string,"method": Database["public"]['Enums']["payment_method"],"org_id": string,"paid_on": string,"recorded_by": string | null,"reference": string,"void_reason": string,"voided_at": string | null
+                  }
+                  Insert: {
+                    "amount": number,"charge_id": string,"created_at"?: string,"id"?: string,"method": Database["public"]['Enums']["payment_method"],"org_id": string,"paid_on": string,"recorded_by"?: string | null,"reference"?: string,"void_reason"?: string,"voided_at"?: string | null
+                  }
+                  Update: {
+                    "amount"?: number,"charge_id"?: string,"created_at"?: string,"id"?: string,"method"?: Database["public"]['Enums']["payment_method"],"org_id"?: string,"paid_on"?: string,"recorded_by"?: string | null,"reference"?: string,"void_reason"?: string,"voided_at"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payments_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_balances"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payments_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payments_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charges"
+      referencedColumns: ["org_id","id"]
+    }
                   ]
                 },"profiles": {
                   Row: {
@@ -197,7 +278,82 @@ isOneToOne: false
                 }
           }
           Views: {
-            "property_overview": {
+            "charge_balances": {
+                  Row: {
+                    "amount": number | null,"amount_paid": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_type_id": string | null,"created_at": string | null,"description": string | null,"due_date": string | null,"effective_status": string | null,"id": string | null,"org_id": string | null,"outstanding": number | null,"status": Database["public"]['Enums']["charge_status"] | null,"tenancy_id": string | null,"type_key": string | null,"type_label": string | null,"unit_id": string | null,"void_reason": string | null,"voided_at": string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "charges_charge_type_id_fkey"
+      columns: ["charge_type_id"]
+isOneToOne: false
+      referencedRelation: "charge_types"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "charges_org_id_tenancy_id_fkey"
+      columns: ["org_id","tenancy_id"]
+isOneToOne: false
+      referencedRelation: "tenancies"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "charges_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"charge_overview": {
+                  Row: {
+                    "amount": number | null,"amount_paid": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_type_id": string | null,"created_at": string | null,"description": string | null,"due_date": string | null,"effective_status": string | null,"id": string | null,"org_id": string | null,"outstanding": number | null,"property_id": string | null,"property_name": string | null,"status": Database["public"]['Enums']["charge_status"] | null,"tenancy_id": string | null,"tenant_id": string | null,"tenant_name": string | null,"type_key": string | null,"type_label": string | null,"unit_id": string | null,"unit_number": string | null,"void_reason": string | null,"voided_at": string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "charges_charge_type_id_fkey"
+      columns: ["charge_type_id"]
+isOneToOne: false
+      referencedRelation: "charge_types"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "charges_org_id_tenancy_id_fkey"
+      columns: ["org_id","tenancy_id"]
+isOneToOne: false
+      referencedRelation: "tenancies"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "charges_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"payment_overview": {
+                  Row: {
+                    "amount": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_id": string | null,"created_at": string | null,"id": string | null,"method": Database["public"]['Enums']["payment_method"] | null,"org_id": string | null,"paid_on": string | null,"property_name": string | null,"reference": string | null,"tenant_id": string | null,"tenant_name": string | null,"type_label": string | null,"unit_number": string | null,"void_reason": string | null,"voided_at": string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payments_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_balances"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payments_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payments_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charges"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"property_overview": {
                   Row: {
                     "address": string | null,"archived_at": string | null,"city": string | null,"created_at": string | null,"id": string | null,"name": string | null,"occupied_count": number | null,"org_id": string | null,"rent_due_day": number | null,"unit_count": number | null,"vacant_count": number | null
                   }
@@ -237,6 +393,9 @@ isOneToOne: false
               "invite_code": string,"invite_expires_at": string
             }[]
                            },
+"generate_monthly_rent":
+{ Args: { "p_month": string,"p_property_id"?: string }; Returns: number
+                           },
 "my_tenancies":
 { Args: Record<PropertyKey, never>; Returns: {
               "bedrooms": number,"currency": string,"floor": string,"monthly_rent": number,"move_in_date": string,"move_out_date": string,"organization_name": string,"property_address": string,"property_city": string,"property_name": string,"rent_due_day": number,"security_deposit": number,"status": Database["public"]['Enums']["tenancy_status"],"tenancy_id": string,"timezone": string,"unit_id": string,"unit_number": string,"unit_type": string
@@ -244,7 +403,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "org_member_role": "owner"|"manager","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
+            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -360,7 +519,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "org_member_role": ["owner", "manager"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
+            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
           }
         }
 } as const
