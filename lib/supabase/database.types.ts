@@ -74,6 +74,93 @@ isOneToOne: false
       referencedColumns: ["org_id","id"]
     }
                   ]
+                },"maintenance_photos": {
+                  Row: {
+                    "created_at": string,"id": string,"org_id": string,"request_id": string,"storage_path": string,"uploaded_by": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"org_id": string,"request_id": string,"storage_path": string,"uploaded_by"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"org_id"?: string,"request_id"?: string,"storage_path"?: string,"uploaded_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "maintenance_photos_org_id_request_id_fkey"
+      columns: ["org_id","request_id"]
+isOneToOne: false
+      referencedRelation: "maintenance_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_photos_org_id_request_id_fkey"
+      columns: ["org_id","request_id"]
+isOneToOne: false
+      referencedRelation: "maintenance_requests"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"maintenance_requests": {
+                  Row: {
+                    "assigned_to": string,"category": Database["public"]['Enums']["maintenance_category"],"created_at": string,"created_by": string | null,"description": string,"id": string,"org_id": string,"resolved_at": string | null,"status": Database["public"]['Enums']["maintenance_status"],"tenancy_id": string | null,"tenant_id": string | null,"title": string,"unit_id": string,"updated_at": string
+                  }
+                  Insert: {
+                    "assigned_to"?: string,"category": Database["public"]['Enums']["maintenance_category"],"created_at"?: string,"created_by"?: string | null,"description"?: string,"id"?: string,"org_id": string,"resolved_at"?: string | null,"status"?: Database["public"]['Enums']["maintenance_status"],"tenancy_id"?: string | null,"tenant_id"?: string | null,"title": string,"unit_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "assigned_to"?: string,"category"?: Database["public"]['Enums']["maintenance_category"],"created_at"?: string,"created_by"?: string | null,"description"?: string,"id"?: string,"org_id"?: string,"resolved_at"?: string | null,"status"?: Database["public"]['Enums']["maintenance_status"],"tenancy_id"?: string | null,"tenant_id"?: string | null,"title"?: string,"unit_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "maintenance_requests_org_id_tenancy_id_fkey"
+      columns: ["org_id","tenancy_id"]
+isOneToOne: false
+      referencedRelation: "tenancies"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_requests_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenant_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_requests_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_requests_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"maintenance_updates": {
+                  Row: {
+                    "author_id": string | null,"body": string,"created_at": string,"id": string,"is_internal": boolean,"org_id": string,"request_id": string,"status_from": Database["public"]['Enums']["maintenance_status"] | null,"status_to": Database["public"]['Enums']["maintenance_status"] | null
+                  }
+                  Insert: {
+                    "author_id"?: string | null,"body"?: string,"created_at"?: string,"id"?: string,"is_internal"?: boolean,"org_id": string,"request_id": string,"status_from"?: Database["public"]['Enums']["maintenance_status"] | null,"status_to"?: Database["public"]['Enums']["maintenance_status"] | null
+                  }
+                  Update: {
+                    "author_id"?: string | null,"body"?: string,"created_at"?: string,"id"?: string,"is_internal"?: boolean,"org_id"?: string,"request_id"?: string,"status_from"?: Database["public"]['Enums']["maintenance_status"] | null,"status_to"?: Database["public"]['Enums']["maintenance_status"] | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "maintenance_updates_org_id_request_id_fkey"
+      columns: ["org_id","request_id"]
+isOneToOne: false
+      referencedRelation: "maintenance_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_updates_org_id_request_id_fkey"
+      columns: ["org_id","request_id"]
+isOneToOne: false
+      referencedRelation: "maintenance_requests"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"org_id": string,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
@@ -328,6 +415,37 @@ isOneToOne: false
       referencedColumns: ["org_id","id"]
     }
                   ]
+                },"maintenance_overview": {
+                  Row: {
+                    "assigned_to": string | null,"category": Database["public"]['Enums']["maintenance_category"] | null,"comment_count": number | null,"created_at": string | null,"created_by": string | null,"description": string | null,"id": string | null,"org_id": string | null,"photo_count": number | null,"property_id": string | null,"property_name": string | null,"resolved_at": string | null,"status": Database["public"]['Enums']["maintenance_status"] | null,"tenancy_id": string | null,"tenant_id": string | null,"tenant_name": string | null,"title": string | null,"unit_id": string | null,"unit_number": string | null,"updated_at": string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "maintenance_requests_org_id_tenancy_id_fkey"
+      columns: ["org_id","tenancy_id"]
+isOneToOne: false
+      referencedRelation: "tenancies"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_requests_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenant_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_requests_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "maintenance_requests_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 },"payment_overview": {
                   Row: {
                     "amount": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_id": string | null,"created_at": string | null,"id": string | null,"method": Database["public"]['Enums']["payment_method"] | null,"org_id": string | null,"paid_on": string | null,"property_name": string | null,"reference": string | null,"tenant_id": string | null,"tenant_name": string | null,"type_label": string | null,"unit_number": string | null,"void_reason": string | null,"voided_at": string | null
@@ -385,8 +503,16 @@ isOneToOne: false
             "add_tenant":
 { Args: { "p_email": string,"p_full_name": string,"p_monthly_rent": number,"p_move_in_date": string,"p_notes": string,"p_phone": string,"p_security_deposit": number,"p_unit_id": string }; Returns: string
                            },
+"cancel_maintenance_request":
+{ Args: { "p_request_id": string }; Returns: string
+                           },
 "claim_tenant_invite":
 { Args: { "p_code": string }; Returns: string
+                           },
+"create_maintenance_request":
+{ Args: { "p_category": Database["public"]['Enums']["maintenance_category"],"p_description": string,"p_tenancy_id": string,"p_title": string }; Returns: {
+              "request_id": string,"request_org_id": string
+            }[]
                            },
 "create_tenant_invite":
 { Args: { "p_tenant_id": string }; Returns: {
@@ -403,7 +529,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
+            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -519,7 +645,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
+            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
           }
         }
 } as const

@@ -192,3 +192,55 @@ begin
 
 end;
 $$;
+
+-------------------------------------------------------------------------------
+-- Maintenance (Phase 5). Comments carry explicit authors (no session in seed).
+--   Tanvir (A1):  pending "Kitchen sink is leaking" + a tenant comment
+--   Rahim (A2):   in progress "AC not cooling" + internal note + public reply
+--   Nusrat (1A):  resolved "Front door lock is jammed"
+--   Imran (B 101): pending "No internet since yesterday"
+-------------------------------------------------------------------------------
+
+do $$
+declare
+  c_landlord_a constant uuid := '11111111-1111-1111-1111-111111111111';
+  c_tenant_a constant uuid := '33333333-3333-3333-3333-333333333333';
+  v_sink uuid;
+  v_ac uuid;
+  v_lock uuid;
+begin
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_by, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'plumbing', 'Kitchen sink is leaking',
+    'Water drips from the pipe under the sink. I put a bucket under it for now.', c_tenant_a, now() - interval '2 days'
+  from public.tenancies tc
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000001' and tc.status = 'active'
+  returning id into v_sink;
+
+  insert into public.maintenance_updates (request_id, author_id, body, created_at)
+  values (v_sink, c_tenant_a, 'It got worse this morning. Please send someone soon.', now() - interval '1 day');
+
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'air_conditioning', 'AC not cooling',
+    'The bedroom AC runs but blows warm air.', now() - interval '5 days'
+  from public.tenancies tc
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000002' and tc.status = 'active'
+  returning id into v_ac;
+
+  update public.maintenance_requests set status = 'in_progress', assigned_to = 'CoolTech Services' where id = v_ac;
+  insert into public.maintenance_updates (request_id, author_id, body, is_internal, created_at) values
+    (v_ac, c_landlord_a, 'CoolTech quoted 3,500 for a gas refill. Approved.', true, now() - interval '3 days'),
+    (v_ac, c_landlord_a, 'A technician from CoolTech will visit on Saturday morning.', false, now() - interval '3 days');
+
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'door_lock', 'Front door lock is jammed', '', now() - interval '20 days'
+  from public.tenancies tc
+  where tc.tenant_id = 'cccccccc-0000-0000-0000-000000000004' and tc.status = 'active'
+  returning id into v_lock;
+  update public.maintenance_requests set status = 'resolved' where id = v_lock;
+
+  insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
+  select tc.org_id, tc.unit_id, tc.id, 'internet', 'No internet since yesterday', '', now() - interval '1 day'
+  from public.tenancies tc
+  where tc.tenant_id = 'dddddddd-0000-0000-0000-000000000001' and tc.status = 'active';
+end;
+$$;
