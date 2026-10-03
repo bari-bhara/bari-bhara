@@ -17,6 +17,7 @@ import {
   type TenantListStatus,
 } from "@/features/tenants/schema";
 import { getCurrentOrganization } from "@/lib/dal";
+import { parsePage, withPage } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Tenants" };
 
@@ -35,7 +36,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
     ? (params.status as TenantListStatus)
     : "current";
   const sort = params.sort && params.sort in TENANT_LIST_SORTS ? (params.sort as TenantListSort) : "name";
-  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const page = parsePage(params.page);
 
   const [properties, organization] = await Promise.all([
     listPropertyOptions(),
@@ -152,10 +153,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
             page={page}
             pageSize={TENANTS_PAGE_SIZE}
             total={total}
-            href={(p) => {
-              const base = href({});
-              return p === 1 ? base : `${base}${base.includes("?") ? "&" : "?"}page=${p}`;
-            }}
+            href={(p) => withPage(href({}), p)}
           />
         </div>
       )}

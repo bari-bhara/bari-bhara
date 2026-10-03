@@ -22,6 +22,7 @@ import {
 } from "@/features/charges/schema";
 import { getCurrentOrganization } from "@/lib/dal";
 import { formatDay, formatMoney, formatMonth } from "@/lib/format";
+import { parsePage, withPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import type { PaymentOverview } from "@/types/domain";
 
@@ -37,7 +38,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const method = isPaymentMethod(params.method) ? params.method : null;
   const includeVoided = params.voided === "1";
-  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const page = parsePage(params.page);
 
   const [{ payments, total }, organization] = await Promise.all([
     listPayments({ method, includeVoided, page }),
@@ -165,10 +166,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             page={page}
             pageSize={PAYMENTS_PAGE_SIZE}
             total={total}
-            href={(p) => {
-              const base = href({});
-              return p === 1 ? base : `${base}${base.includes("?") ? "&" : "?"}page=${p}`;
-            }}
+            href={(p) => withPage(href({}), p)}
           />
         </div>
       )}

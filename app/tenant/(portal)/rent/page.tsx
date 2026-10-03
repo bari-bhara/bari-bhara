@@ -2,10 +2,17 @@ import { Receipt } from "lucide-react";
 import type { Metadata } from "next";
 import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
+import { Pagination } from "@/components/app/pagination";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChargeStatusBadge } from "@/features/charges/components/charge-status-badge";
-import { getMyCharges, getMyTenancies, type MyCharge } from "@/features/tenant-portal/queries";
+import {
+  getMyOpenCharges,
+  getMyPaidCharges,
+  getMyTenancies,
+  type MyCharge,
+} from "@/features/tenant-portal/queries";
 import { formatDay, formatMoney, formatMonth } from "@/lib/format";
+import { PAGE_SIZE, parsePage, withPage } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "My Rent" };
 
@@ -36,18 +43,21 @@ function ChargeRow({ charge, currency }: { charge: MyCharge; currency: string })
   );
 }
 
-export default async function TenantRentPage() {
-  const [charges, tenancies] = await Promise.all([getMyCharges(), getMyTenancies()]);
+/** Open charges are all shown; `?page=` pages through the paid history. */
+export default async function TenantRentPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const page = parsePage((await searchParams).page);
+  const [openCharges, { rows: settled, total: settledTotal }, tenancies] = await Promise.all([
+    getMyOpenCharges(),
+    getMyPaidCharges(page),
+    getMyTenancies(),
+  ]);
   const currency = tenancies[0]?.currency ?? "BDT";
 
-  const open = charges
-    .filter((c) => c.outstanding > 0)
-    .sort(
-      (a, b) =>
-        OPEN_ORDER[a.effective_status] - OPEN_ORDER[b.effective_status] ||
-        a.due_date.localeCompare(b.due_date),
-    );
-  const settled = charges.filter((c) => c.outstanding === 0);
+  const open = openCharges.sort(
+    (a, b) =>
+      OPEN_ORDER[a.effective_status] - OPEN_ORDER[b.effective_status] ||
+      a.due_date.localeCompare(b.due_date),
+  );
   const owed = open.reduce((sum, c) => sum + c.outstanding, 0);
   const overdue = open
     .filter((c) => c.effective_status === "overdue")
@@ -56,7 +66,7 @@ export default async function TenantRentPage() {
   return (
     <>
       <PageHeader title="My Rent" description="Your rent and bills." />
-      {charges.length === 0 ? (
+      {open.length === 0 && settledTotal === 0 ? (
         <EmptyState
           icon={Receipt}
           title="Nothing due"
@@ -103,6 +113,12 @@ export default async function TenantRentPage() {
                   </ul>
                 </CardContent>
               </Card>
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={settledTotal}
+                href={(p) => withPage("/tenant/rent", p)}
+              />
             </section>
           )}
         </div>
