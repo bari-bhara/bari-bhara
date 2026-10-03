@@ -45,7 +45,7 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `notice_units` | Selected-unit targeting | 6 | Implemented (`20261003100000_notices`) |
 | `my_notices`, `notice_overview` (views) | Tenant inbox with read state; landlord list with targeting and read counts | 6 | Implemented (`20261003100000_notices`) |
 | `notice_reads` | Per-user read receipts | 6 | Implemented (`20261003100000_notices`) |
-| `notifications` | Per-channel reminder deliveries | 8 | Planned |
+| `notifications` | Per-channel reminder deliveries | 8 | Implemented (`20261003120000_notifications`) |
 
 ## Implemented tables
 
@@ -179,7 +179,7 @@ RLS: org members can select (every column except `code_hash`). There are no writ
 | `id` | uuid PK | |
 | `org_id` | uuid → organizations | cascade |
 | `actor_id` | uuid → auth.users, nullable | `auth.uid()` at write time (null for seed/system writes) |
-| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`, `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED`, `NOTICE_CREATED` |
+| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`, `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED`, `NOTICE_CREATED`, `REMINDER_SENT` |
 | `entity_type`, `entity_id` | text, uuid | e.g. `tenant`, `tenancy` |
 | `metadata` | jsonb | event details |
 | `created_at` | timestamptz | |
@@ -360,6 +360,32 @@ Both are `security invoker` and return one `jsonb` document, so each dashboard i
 | `landlord_dashboard(p_org_id) → jsonb` | `today`, `month` (org timezone); `properties`; `units` {total, occupied, vacant, maintenance, inactive}; `current_tenants`; `month_billed` (non-void charges for this billing month); `month_collected` (live payments with `paid_on` this month); `outstanding`; `overdue` {amount, count}; `overdue_tenants` (top 5); `vacant_units` (5); `maintenance` {open, pending}; `open_requests` (5 newest); `live_notices`; `activity` (10 latest, each with `subject` and `place` resolved in SQL). Returns null if the caller isn't a member of `p_org_id` |
 | `tenant_dashboard() → jsonb` | `owed`, `overdue`, `next_due` (earliest open charge), `last_payment`, `open_requests`, `unread_notices`, over the caller's own tenancies |
 
+### `notifications`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id`, `tenant_id` | uuid | composite FK → tenants, restrict |
+| `recipient_user_id`, `recipient_email` | uuid / text | **filled by trigger from the tenant record** (not insertable), so landlords can only address their own tenants |
+| `type` | `notification_type` enum (`payment_reminder`) | |
+| `channel` | `notification_channel` enum (`in_app`, `email`, `sms`, `whatsapp`) | one row per channel delivery; sms/whatsapp have no provider yet (`BB014`) |
+| `charge_id` | uuid, nullable | composite FK → charges; must belong to the tenant. Null for bulk reminders covering several charges |
+| `subject` (1–200), `message` (1–4000) | text | plain text as sent |
+| `status` | `notification_status` enum (`pending`, `sent`, `failed`) | inserted `pending`; set once to `sent`/`failed` (`BB013` after that) |
+| `sent_at` | timestamptz | trigger-set with `sent` |
+| `read_at` | timestamptz | in-app only, via `mark_notifications_read()` |
+| `error` | text, ≤500 | provider error for `failed` |
+| `created_by`, `created_at` | | |
+
+Indexes: `(org_id, created_at desc)`, `(tenant_id, org_id, created_at desc)`, `(charge_id, org_id)`, partial `(recipient_user_id, created_at desc) where channel = 'in_app'`, `(created_by)`.
+
+Triggers: `notifications_prepare` (recipients from the tenant, `BB014` if the channel can't reach them, delivery state machine). The statement-level `notifications_log_created` logs one `REMINDER_SENT` per tenant per send.
+
+RLS:
+- Members can select, insert, and update delivery fields. Insertable: `org_id, tenant_id, type, channel, charge_id, subject, message`; updatable: `status, error`.
+- Tenants can select only their own `in_app` rows. They have no update policy and mark rows read through `mark_notifications_read(p_ids uuid[] default null) → int` (definer, own unread in-app rows only).
+
+Delivery happens in Server Actions through `lib/notifications` providers ([ADR 0005](../adr/0005-notifications-provider-interface-resend.md)): in-app, Resend, or Mailpit in development.
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|
@@ -379,6 +405,7 @@ Both are `security invoker` and return one `jsonb` document, so each dashboard i
 | `private.prepare_maintenance_request()`, `private.log_maintenance_request()`, `private.prepare_maintenance_update()`, `private.prepare_maintenance_photo()` | triggers, security definer | Maintenance rules, status history, activity |
 | `private.user_visible_notice_ids()`, `private.can_see_notice(id)` | security definer, stable | Notices aimed at the caller's active tenancies (set form used in policies) |
 | `private.log_notice_created()` | trigger, security definer | `NOTICE_CREATED` activity |
+| `private.prepare_notification()`, `private.log_notifications_created()` | triggers, security definer | Notification recipients, delivery state, `REMINDER_SENT` activity |
 
 Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
@@ -393,7 +420,7 @@ Default privileges: tables, sequences and functions created in `public` grant **
 |---|---|
 | `anon` | Nothing |
 | Landlord / manager | Full CRUD where `org_id in (select private.user_org_ids())` |
-| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Reads their own maintenance requests, **non-internal** updates and photos; creates and cancels requests via RPCs; comments publicly. Reads notices aimed at their current homes and records their own reads. Planned: own notifications |
+| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Reads their own maintenance requests, **non-internal** updates and photos; creates and cancels requests via RPCs; comments publicly. Reads notices aimed at their current homes and records their own reads. Reads their own in-app notifications and marks them read via RPC |
 
 Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. `user_tenant_ids()`, `user_tenancy_ids()`, `user_tenant_org_ids()`, `org_today(org_id)`. `user_visible_notice_ids()`, `can_see_notice(notice_id)`.
 

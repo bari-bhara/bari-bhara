@@ -14,7 +14,7 @@
 - [x] 5. Maintenance
 - [x] 6. Notices
 - [x] 7. Dashboards
-- [ ] 8. Notifications
+- [x] 8. Notifications
 - [ ] 9. Polish
 - [ ] 10. Deployment
 
@@ -557,3 +557,10 @@ Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 00
   - Each dashboard is one invoker RPC returning `jsonb`. "Collected" counts payments **received** this month, whatever month they were billed for; "billed" counts charges for this billing month.
   - Activity entries are resolved to readable subjects in SQL (tenant name, request or notice title, place). The wording lives in `features/dashboard/activity.ts`.
   - The same mobile overflow bug as Phase 3 (`truncate` text in auto-sized grid tracks) hit the dashboard once real data grew. Its grids now use `grid-cols-1`. **Rule for new pages: any grid holding truncated text needs `grid-cols-1` (or `min-w-0` items).**
+- 2026-10-03: Phase 8 done (branch `feature/notifications`, stacked on `feature/dashboards`). Decisions made during implementation:
+  - **Recipients are filled from the tenant record by trigger and aren't insertable.** Otherwise a landlord could send in-app messages to other orgs' users, or use the sending domain to email anyone.
+  - Added a **Mailpit email provider for development** (the local Supabase mail catcher's HTTP API), alongside ADR 0005's in-app and Resend providers. Dev reminders arrive at <http://127.0.0.1:54324> and E2E tests check them. Selection: `RESEND_API_KEY` → Resend; `MAILPIT_URL` → Mailpit; otherwise email rows are recorded failed with "Email isn't configured". This is within ADR 0005's interface, so there's no new ADR.
+  - Resend is called with `fetch` (no SDK dependency).
+  - Bulk reminders send one message per tenant listing all their overdue charges (`charge_id` null). Tenants reminded successfully in the last 20 hours are skipped; tenants with no login or email are reported as unreachable and get no rows.
+  - Delivery is synchronous in the Server Action, sequential for bulk. Move to a queue or Edge Function (ADR 0005 alternative) if volumes grow.
+  - The tenant "Reminders" inbox is a new nav item with its own unread badge; opening it marks all read (client effect + RPC).

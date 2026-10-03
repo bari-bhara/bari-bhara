@@ -24,7 +24,11 @@ Create `.env.development.local` from what `db:start` printed (see [`.env.example
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key from db:start>
+# Payment reminder emails go to the local mail catcher (no Resend key needed):
+MAILPIT_URL=http://127.0.0.1:54324
 ```
+
+Reminder emails sent in development show up in Mailpit at <http://127.0.0.1:54324>. Production uses Resend (`RESEND_API_KEY`, `EMAIL_FROM` on a verified domain). With neither configured, email reminders are recorded as failed with a clear error, and in-app reminders still work.
 
 ```bash
 pnpm db:reset          # applies migrations + seed data
