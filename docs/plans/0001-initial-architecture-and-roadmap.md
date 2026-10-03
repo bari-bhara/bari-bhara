@@ -8,7 +8,7 @@
 ### Progress
 - [x] 0. Project documentation
 - [x] 1. Foundation
-- [ ] 2. Properties
+- [x] 2. Properties
 - [ ] 3. Tenants
 - [ ] 4. Rent & bills
 - [ ] 5. Maintenance
@@ -232,6 +232,30 @@ organizations 1─* notifications (→ tenant, → charge)     organizations 1�
 7. **Tests** (no unit tests for now, per the user; E2E only)
    - Playwright: signup/login redirects per role, logout, unauthenticated redirect, tenant blocked from `/dashboard`.
 
+### Phase 2 detail (Properties & units)
+Branch `feature/property-management` from `main`. Small commits: db → feature code → UI → tests → docs.
+
+1. **Migration `…_properties_and_units.sql`**
+   - Enum `unit_status` (`vacant|occupied|maintenance|inactive`).
+   - `properties`: `org_id`, `name` (1–120), `address` (≤300), `city` (≤80), `rent_due_day` (smallint 1–28, default 5), `notes` (≤1000), `archived_at`, `created_at`, `updated_at`. `unique (org_id, id)` is the target for child composite FKs and also serves as the `org_id` index.
+   - `units`: `org_id`, `property_id`, `unit_number` (1–20), `floor` (≤20, text so "G"/"Ground" work), `unit_type` (≤40, e.g. "2 bed flat", "Shop"), `bedrooms` (0–20, nullable), `default_rent` (`numeric(12,2)` ≥ 0), `status` (default `vacant`), `notes`, timestamps. Composite FK `(org_id, property_id) → properties (org_id, id)` **on delete restrict**: a property with units can only be archived, not deleted. `unique (property_id, unit_number)`, `unique (org_id, id)` (for Phase 3+ composite FKs), index `units (property_id, status)`.
+   - `org_id` and `property_id` are not updatable (column-level grants), so a unit can't move between properties or orgs.
+   - View `property_overview` (`security_invoker = true`): each property plus `unit_count`, `occupied_count`, `vacant_count`, so the property list is one query.
+   - RLS: org members get select/insert/update/delete on both tables (`org_id in (select private.user_org_ids())`). Tenant read policies on properties/units need `tenancies`, so they come in Phase 3.
+   - Seed: landlord A gets 2 properties with units in mixed statuses; landlord B gets 1 property. Fixed UUIDs so tests and manual checks can reference them.
+2. **Unit status in Phase 2:** the form allows `vacant`, `maintenance` and `inactive`. `occupied` is reserved for the Phase 3 occupancy trigger (driven by active tenancies), so it is shown and filterable but not hand-set. A server-side check rejects it.
+3. **Feature code** (`features/properties/`, `features/units/`): zod `schema.ts`, `queries.ts` (server-only, called inside the layout's Suspense boundary), `actions.ts` (every action calls `requireRole('landlord')`, validates with zod, returns `ActionResult` or redirects, and calls `refresh()`/redirect after writes). The org id for inserts comes from `getCurrentOrganization()`; RLS `with check` is the real guard.
+4. **Routes**
+   - `/properties`: card grid with unit counts; "Show archived" toggle (`?archived=1`).
+   - `/properties/new`, `/properties/[id]/edit`.
+   - `/properties/[id]`: details, unit stats, the property's units with status filter, "Add unit", archive/restore, delete (only when it has no units).
+   - `/units`: all units across non-archived properties, filters by status and property via `searchParams` (links, no client JS).
+   - `/units/new?propertyId=`, `/units/[id]`, `/units/[id]/edit`, delete with confirmation.
+   - Unknown or other-org ids render `notFound()` (RLS returns no row).
+5. **Shared UI:** `lib/format.ts` (`formatMoney` with the org currency, `formatDate` in Asia/Dhaka), `StatusBadge`-style `UnitStatusBadge`, `FilterChips`, `ConfirmDialog`, a responsive units list (table ≥ md, cards below). shadcn: `select`, `alert-dialog`, `table`, `textarea`.
+6. **Tests (E2E):** landlord A creates a property, adds a unit, edits it, filters by status; duplicate unit number shows a field error; landlord B sees none of A's properties and gets a 404 on A's property URL; tenant is redirected away from `/properties`.
+7. **Docs:** update `architecture/database.md` (tables, view, policies), tick Phase 2, changelog.
+
 ---
 
 ## 5. Risks & mitigations
@@ -261,3 +285,11 @@ organizations 1─* notifications (→ tenant, → charge)     organizations 1�
   - shadcn components are added with `shadcn@2.3.0`, the last version that targets Tailwind v3.
   - `/tenant/join` (claiming an invite code) is deferred to Phase 3, since it needs the `tenants` table.
 - 2026-10-03: Added `.github/workflows/supabase-migrations.yml`, which runs `supabase db push` on merges to `main` that touch `supabase/migrations/` (plus manual runs). This takes over the "push migrations" item from Phase 10. Auth dashboard settings stay manual.
+- 2026-10-03: Phase 2 done (branch `feature/property-management`). Decisions made during implementation:
+  - `properties.notes` and `units.notes` were added (landlord-only free text). Units get `unique (org_id, id)` now so Phase 3 tables can use composite FKs.
+  - A property with units can't be deleted (FK `on delete restrict`); it is archived instead. Archived properties and their units drop out of lists and pickers.
+  - `occupied` can't be set by hand: the actions reject changes to or from it. The Phase 3 occupancy trigger owns it.
+  - Ids are validated with `z.guid()`, not `z.uuid()`: zod v4's `uuid()` checks RFC 9562 version bits and rejected valid Postgres uuids such as the seed ids.
+  - Fixed two Phase 1 latent bugs exposed by the first dynamic routes: the shell navs called `usePathname()` outside `<Suspense>` (blocks prerendering under `cacheComponents`), and Tailwind's `content` didn't scan `features/`.
+  - `notFound()` from a page inside the layout's Suspense boundary streams the 404 UI with HTTP 200. Tests assert the rendered 404, not the status. A proper `not-found.tsx` belongs to Phase 9.
+  - Next 16 keeps visited routes mounted but hidden, so E2E tests use role queries or `filter({ visible: true })` instead of bare `getByText` counts.

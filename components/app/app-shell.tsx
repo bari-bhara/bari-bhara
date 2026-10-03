@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Logo } from "./logo";
-import { MobileNav } from "./mobile-nav";
+import { MobileNav, MobileNavBar } from "./mobile-nav";
 import type { ShellVariant } from "./nav-config";
-import { SidebarNav } from "./sidebar-nav";
+import { SidebarNav, SidebarNavList } from "./sidebar-nav";
 import { UserMenu, UserMenuSkeleton } from "./user-menu";
 
 const HOME: Record<ShellVariant, string> = {
@@ -36,7 +36,10 @@ export function AppShell({
           <Logo href={HOME[variant]} />
         </div>
         <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-2">
-          <SidebarNav variant={variant} />
+          {/* The active item depends on the URL, which dynamic routes only know at request time. */}
+          <Suspense fallback={<SidebarNavList variant={variant} pathname="" />}>
+            <SidebarNav variant={variant} />
+          </Suspense>
         </nav>
       </aside>
 
@@ -59,7 +62,9 @@ export function AppShell({
         </main>
       </div>
 
-      <MobileNav variant={variant} />
+      <Suspense fallback={<MobileNavBar variant={variant} pathname="" />}>
+        <MobileNav variant={variant} />
+      </Suspense>
     </div>
   );
 }

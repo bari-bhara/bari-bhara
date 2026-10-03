@@ -24,3 +24,13 @@ export async function logout(page: Page) {
 export function uniqueEmail(prefix: string) {
   return `${prefix}.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
 }
+
+/** Seeded properties — see supabase/seed.sql. */
+export const PROPERTIES = {
+  landlordA: { id: "aaaaaaaa-0000-0000-0000-000000000001", name: "Green View Tower" },
+  landlordB: { id: "bbbbbbbb-0000-0000-0000-000000000001", name: "Lakeside Apartments" },
+} as const;
+
+export function uniqueName(prefix: string) {
+  return `${prefix} ${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
+}
