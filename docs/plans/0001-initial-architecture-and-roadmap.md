@@ -507,6 +507,42 @@ Branch `feature/polish`, stacked on `feature/notifications`. No migration is exp
 6. **Tests:** the full suite stays green on mobile and desktop. New tests cover the in-shell 404, the unmatched-URL 404, pagination on one list, the layout checks and the axe scans. The error boundary is checked by hand (by temporarily throwing in a page), since E2E can't make the server fail on demand.
 7. **Docs:** tick Phase 9, changelog.
 
+### Phase 10 detail (Deployment)
+Branch `feature/deployment`, stacked on `feature/polish`. The work splits in two:
+- **In the repo (this branch):** everything that can be prepared and verified locally.
+- **In production:** steps that need the owner's Supabase, Resend, GitHub and Vercel accounts. Each one changes a live system, so they're a checklist in the runbook, run with the owner's go-ahead. The phase is done when the production smoke test passes.
+
+1. **Security review**, written up as `architecture/security.md`:
+   - **Database:** RLS on every table; no `anon` privileges; every `security definer` function pins `search_path` and isn't executable by `anon`; views are `security_invoker`; the storage bucket is private with path-scoped policies; the access-token hook is executable only by `supabase_auth_admin`. Checked with catalog queries against the local database, plus `supabase db lint` and the advisors.
+   - **App:** every Server Action authorizes before touching data; no service-role key exists; only the URL and publishable key reach the browser; email HTML is escaped; `?next=` can't be used as an open redirect; the invite code locks out after repeated failures.
+   - Known gaps and recommendations.
+2. **Security headers** in `next.config.ts`:
+   - a CSP limited to `frame-ancestors`, `base-uri`, `form-action` and `object-src` (no script policy; nonces would make every page dynamic);
+   - `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` and HSTS;
+   - no `X-Powered-By`.
+3. **Email config guard:** with `RESEND_API_KEY` set but no `EMAIL_FROM`, reminders are recorded as failed with "set EMAIL_FROM", instead of sending from a placeholder address Resend would reject.
+4. **Smoke test:** `pnpm test:smoke` with `SMOKE_BASE_URL`, using a separate Playwright config and no dev server.
+   - Read-only, so it is safe against production.
+   - Checks: public pages, security headers, redirects for signed-out users, the auth error page.
+   - Optional landlord and tenant sign-in with existing accounts.
+5. **Runbook** `runbooks/deployment.md` (new `docs/runbooks/` folder):
+   - **One-time setup:**
+     - Supabase Auth URLs and email confirmation;
+     - Resend domain plus custom SMTP;
+     - the access-token hook;
+     - GitHub migration secrets;
+     - Vercel project and env vars.
+   - **Each release:** merge order, migration workflow, smoke test.
+   - **Rollback.**
+6. **Verification:**
+   - A production build (`next build` and `next start`) against the local stack. The full E2E suite and the smoke test both pass against it.
+   - `db lint` and advisors clean.
+7. **Production (owner, with the runbook):**
+   - configure hosted Supabase, Resend and Vercel;
+   - merge the stacked branches in order (migrations apply via CI);
+   - run `pnpm test:smoke` against the production URL;
+   - then tick Phase 10.
+
 ---
 
 ## 5. Risks & mitigations
