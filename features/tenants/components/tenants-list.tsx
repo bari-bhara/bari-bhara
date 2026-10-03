@@ -27,7 +27,7 @@ function since(tenant: TenantOverview) {
 export function TenantsList({ tenants, currency }: { tenants: TenantOverview[]; currency: string }) {
   return (
     <>
-      <ul className="grid gap-2 md:hidden">
+      <ul className="grid grid-cols-1 gap-2 md:hidden">
         {tenants.map((tenant) => (
           <li key={tenant.id}>
             <Link

@@ -80,7 +80,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
           </Button>
         }
       />
-      <div className="mb-4 grid gap-3">
+      <div className="mb-4 grid grid-cols-1 gap-3">
         <SearchForm
           action="/tenants"
           label="Search tenants"
@@ -146,7 +146,7 @@ export default async function TenantsPage({ searchParams }: { searchParams: Prom
           />
         )
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <TenantsList tenants={tenants} currency={organization?.currency ?? "BDT"} />
           <Pagination
             page={page}
