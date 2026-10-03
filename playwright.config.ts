@@ -6,10 +6,15 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  // The deployed-site smoke test has its own config (playwright.smoke.config.ts).
+  testIgnore: "smoke/**",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
+  // The dev server compiles routes on first visit, which can take several
+  // seconds while six workers share it.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",

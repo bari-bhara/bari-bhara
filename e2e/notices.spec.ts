@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { USERS, login, uniqueName } from "./helpers";
+import { SEED_PASSWORD, USERS, login, uniqueEmail, uniqueName } from "./helpers";
 
 async function signedIn(browser: Browser, email: string, home: string) {
   const context = await browser.newContext();
@@ -69,8 +69,13 @@ test.describe("notices", () => {
     await expect(tenant.page.getByText(forA2)).toHaveCount(0);
     await expect(tenant.page.getByText(later)).toHaveCount(0);
 
-    // Opening a notice marks it read.
+    // Opening a notice marks it read (a server action from a client effect;
+    // wait for it, or leaving the page can cancel it).
+    const marked = tenant.page.waitForResponse(
+      (r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined,
+    );
     await inbox.getByRole("link", { name: `${forA1} (unread)` }).click();
+    await marked;
     await expect(tenant.page.getByRole("heading", { level: 1, name: forA1 })).toBeVisible();
     await expect(tenant.page.getByText(`Body of ${forA1}`, { exact: true }).filter({ visible: true })).toBeVisible();
     await expect(async () => {
@@ -110,5 +115,37 @@ test.describe("notices", () => {
     await login(page, USERS.tenantA.email);
     await expect(page).toHaveURL("/tenant/dashboard");
     await expect(page.getByRole("link", { name: /Notices.*unread/ }).first()).toBeVisible();
+  });
+});
+
+test.describe("notice list pagination", () => {
+  test("pages through more than 20 notices, newest first", async ({ page }) => {
+    // 21 notices through the form.
+    test.setTimeout(240_000);
+    // A fresh landlord, so the list holds exactly these notices.
+    await page.goto("/signup");
+    await page.getByLabel("Full name").fill("Paging Landlord");
+    await page.getByLabel(/Business or portfolio name/).fill(uniqueName("Paging Homes"));
+    await page.getByLabel("Email").fill(uniqueEmail("landlord"));
+    await page.getByLabel("Password", { exact: true }).fill(SEED_PASSWORD);
+    await page.getByLabel("Confirm password").fill(SEED_PASSWORD);
+    await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page).toHaveURL("/dashboard");
+
+    const titles = Array.from({ length: 21 }, (_, i) => `Paged notice ${String(i + 1).padStart(2, "0")}`);
+    for (const title of titles) await publish(page, title, { kind: "all" });
+
+    await page.goto("/notices");
+    const list = page.getByRole("main").getByRole("listitem");
+    await expect(list).toHaveCount(20);
+    await expect(list.first()).toContainText(titles[20]);
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText("1–20 of 21");
+
+    await page.getByRole("link", { name: "Next" }).click();
+    await expect(page).toHaveURL("/notices?page=2");
+    await expect(list).toHaveCount(1);
+    await expect(list.first()).toContainText(titles[0]);
+    await page.getByRole("link", { name: "Previous" }).click();
+    await expect(page).toHaveURL("/notices");
   });
 });

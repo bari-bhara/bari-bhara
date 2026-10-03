@@ -14,8 +14,11 @@ export function PropertyCard({ property }: { property: PropertyOverview }) {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-semibold">
-            {/* Stretched link: the whole card is clickable, with one accessible name. */}
-            <Link href={`/properties/${property.id}`} className="after:absolute after:inset-0">
+            {/* Stretched link: the whole card is clickable (and ringed on focus), with one accessible name. */}
+            <Link
+              href={`/properties/${property.id}`}
+              className="after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+            >
               {property.name}
             </Link>
           </h2>

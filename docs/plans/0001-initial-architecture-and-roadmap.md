@@ -15,7 +15,7 @@
 - [x] 6. Notices
 - [x] 7. Dashboards
 - [x] 8. Notifications
-- [ ] 9. Polish
+- [x] 9. Polish
 - [ ] 10. Deployment
 
 > This is a living document. When a phase lands, tick its box. When the plan changes, edit the plan and record the reason under "Changelog" at the bottom. Significant architectural changes also need a new ADR.
@@ -481,6 +481,68 @@ Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 00
    - Landlord B sees none of A's reminders.
 7. **Docs:** `architecture/database.md`, tick Phases 7 and 8, changelog, README env notes.
 
+### Phase 9 detail (Polish)
+Branch `feature/polish`, stacked on `feature/notifications`. No migration is expected.
+
+1. **Not-found and error states**
+   - `app/not-found.tsx`: unmatched URLs and any `notFound()` outside the app shells. Branded, with a link home.
+   - `app/(landlord)/not-found.tsx` and `app/tenant/not-found.tsx`: `notFound()` from a page (a missing or other org's record) renders **inside the shell**, with a link back to the section's list.
+   - `error.tsx` in `app/`, `app/(landlord)/` and `app/tenant/`: "Something went wrong", a **Try again** button (`retry()`, Next 16.3) and the error digest as a reference. The shell stays usable. `app/global-error.tsx` covers the root layout.
+   - These replace the default "404" page the E2E tests currently assert.
+2. **Loading states:** `loading.tsx` in `(landlord)` and `tenant/(portal)`, so navigation shows a skeleton at once instead of waiting on the server. Lists get a list-shaped skeleton.
+3. **Performance**
+   - Every list that grows over time is paginated (20 per page, `?page=`), using the existing `Pagination` component:
+     - landlord notices;
+     - landlord maintenance, replacing the silent cap at 200;
+     - tenant requests, notices and payments;
+     - tenant rent history (the "Paid" section). Open charges stay on one page.
+   - Lists select only the columns they show where rows carry large text (notice bodies, request descriptions).
+   - Naturally bounded lists stay unpaginated: properties, units within a property, the rent and bills pages (one month), and dashboard cards (capped in SQL).
+4. **Mobile and layout:** an E2E check that every landlord and tenant page has no horizontal overflow at **360px** (smallest common phone) and **768px** (where the sidebar and tables appear). This extends the 390px check from Phase 3. Fix whatever it finds.
+5. **Accessibility**
+   - Add `@axe-core/playwright` (dev only; an E2E check, so it fits the no-unit-tests decision).
+   - `e2e/a11y.spec.ts` scans the main landlord, tenant and public pages for WCAG 2.1 A/AA violations in **light and dark** mode, and the run fails on any violation.
+   - Fix what it reports.
+   - Manual review of keyboard flow (skip link, dialogs, menus) and focus visibility.
+6. **Tests:** the full suite stays green on mobile and desktop. New tests cover the in-shell 404, the unmatched-URL 404, pagination on one list, the layout checks and the axe scans. The error boundary is checked by hand (by temporarily throwing in a page), since E2E can't make the server fail on demand.
+7. **Docs:** tick Phase 9, changelog.
+
+### Phase 10 detail (Deployment)
+Branch `feature/deployment`, stacked on `feature/polish`. The work splits in two:
+- **In the repo (this branch):** everything that can be prepared and verified locally.
+- **In production:** steps that need the owner's Supabase, Resend, GitHub and Vercel accounts. Each one changes a live system, so they're a checklist in the runbook, run with the owner's go-ahead. The phase is done when the production smoke test passes.
+
+1. **Security review**, written up as `architecture/security.md`:
+   - **Database:** RLS on every table; no `anon` privileges; every `security definer` function pins `search_path` and isn't executable by `anon`; views are `security_invoker`; the storage bucket is private with path-scoped policies; the access-token hook is executable only by `supabase_auth_admin`. Checked with catalog queries against the local database, plus `supabase db lint` and the advisors.
+   - **App:** every Server Action authorizes before touching data; no service-role key exists; only the URL and publishable key reach the browser; email HTML is escaped; `?next=` can't be used as an open redirect; the invite code locks out after repeated failures.
+   - Known gaps and recommendations.
+2. **Security headers** in `next.config.ts`:
+   - a CSP limited to `frame-ancestors`, `base-uri`, `form-action` and `object-src` (no script policy; nonces would make every page dynamic);
+   - `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` and HSTS;
+   - no `X-Powered-By`.
+3. **Email config guard:** with `RESEND_API_KEY` set but no `EMAIL_FROM`, reminders are recorded as failed with "set EMAIL_FROM", instead of sending from a placeholder address Resend would reject.
+4. **Smoke test:** `pnpm test:smoke` with `SMOKE_BASE_URL`, using a separate Playwright config and no dev server.
+   - Read-only, so it is safe against production.
+   - Checks: public pages, security headers, redirects for signed-out users, the auth error page.
+   - Optional landlord and tenant sign-in with existing accounts.
+5. **Runbook** `runbooks/deployment.md` (new `docs/runbooks/` folder):
+   - **One-time setup:**
+     - Supabase Auth URLs and email confirmation;
+     - Resend domain plus custom SMTP;
+     - the access-token hook;
+     - GitHub migration secrets;
+     - Vercel project and env vars.
+   - **Each release:** merge order, migration workflow, smoke test.
+   - **Rollback.**
+6. **Verification:**
+   - A production build (`next build` and `next start`) against the local stack. The full E2E suite and the smoke test both pass against it.
+   - `db lint` and advisors clean.
+7. **Production (owner, with the runbook):**
+   - configure hosted Supabase, Resend and Vercel;
+   - merge the stacked branches in order (migrations apply via CI);
+   - run `pnpm test:smoke` against the production URL;
+   - then tick Phase 10.
+
 ---
 
 ## 5. Risks & mitigations
@@ -564,3 +626,20 @@ Branch `feature/notifications`, stacked on `feature/dashboards`. Follows [ADR 00
   - Bulk reminders send one message per tenant listing all their overdue charges (`charge_id` null). Tenants reminded successfully in the last 20 hours are skipped; tenants with no login or email are reported as unreachable and get no rows.
   - Delivery is synchronous in the Server Action, sequential for bulk. Move to a queue or Edge Function (ADR 0005 alternative) if volumes grow.
   - The tenant "Reminders" inbox is a new nav item with its own unread badge; opening it marks all read (client effect + RPC).
+- 2026-10-03: Phase 9 done (branch `feature/polish`, stacked on `feature/notifications`). Decisions made during implementation:
+  - **Every `.grid` now defaults to one shrinkable column** (`minmax(0, 1fr)`, a base-layer rule in `globals.css`); `grid-cols-*` utilities still override it. The new 360px check found the Phase 3/7 overflow bug twice more (properties list, tenant page). Fixing the default replaces the "use `grid-cols-1`" rule for new pages.
+  - Not-found and error pages render **inside the app shells** (`(landlord)/` and `tenant/`), with a link back to the current section. Signed-out visitors to any unknown URL still go to login first, so the URL list isn't revealed. Error boundaries use Next 16.3's `retry()`.
+  - axe found contrast failures in the theme tokens, not in pages. The light `destructive` is now red-700 and `muted-foreground` is 40% lightness. In dark mode `destructive` is red-500 with dark text on destructive buttons, since white on red-500 fails AA.
+  - Links and other unstyled focusables get one visible focus ring (base layer). The account menu is non-modal, so opening it no longer hides the page from assistive tech.
+  - Paginated lists: landlord notices and maintenance (the old silent cap at 200 is gone), and the tenant's requests, notices, payments and paid rent history (20 per page, `lib/pagination.ts`). Open charges stay on one page. List queries skip notice bodies and request descriptions. Existing indexes cover the new orderings, so there's no migration.
+  - The axe scans run on the desktop project only, since the markup is the same on both. The error boundary was checked by temporarily throwing in a page (shell intact, reference shown, Try again works).
+  - Under full parallel load, three existing tests raced the dev server. They now wait for the event they depend on, and the expect timeout is 10s.
+- 2026-10-03: Phase 10 repo work done (branch `feature/deployment`, stacked on `feature/polish`). **The Phase 10 box stays unticked** until the production steps in the [runbook](../runbooks/deployment.md) are done and the production smoke test passes. Decisions made during implementation:
+  - Added `docs/runbooks/` for operational procedures, and `architecture/security.md` for the security model and review.
+  - The security review found no database issues. All checks were catalog queries against the local stack, plus lint, advisors and `pnpm audit`. Recorded gaps: no script CSP, no pgTAP, no cooldown on single reminders, no app-level rate limiting.
+  - Security headers come from `next.config.ts` for every path. The CSP leaves out `script-src`, because nonces would make every page dynamic under Cache Components.
+  - `RESEND_API_KEY` without `EMAIL_FROM` is now a configuration failure, not a placeholder sender.
+  - `pnpm test:smoke` (`playwright.smoke.config.ts`, `e2e/smoke/`) is read-only and needs `SMOKE_BASE_URL`. The main E2E config ignores it.
+  - Verified with a production build (`next build` and `next start` against the local stack): 118/118 E2E and 12/12 smoke tests pass.
+  - Preview deployments must not use the production database. The runbook says to leave Preview env vars unset, or to use a staging project.
+

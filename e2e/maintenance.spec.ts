@@ -83,7 +83,7 @@ test.describe("maintenance", () => {
     await login(other, USERS.landlordB.email);
     await expect(other).toHaveURL("/dashboard");
     await other.goto(`/maintenance/${requestId}`);
-    await expect(other.getByRole("heading", { name: "404" })).toBeVisible();
+    await expect(other.getByRole("heading", { name: "Page not found" })).toBeVisible();
 
     await Promise.all([tenantContext.close(), landlordContext.close(), otherContext.close()]);
   });

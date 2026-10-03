@@ -71,26 +71,33 @@ export function mailpitProvider(baseUrl: string, from: string): NotificationProv
   };
 }
 
-const unconfiguredEmail: NotificationProvider = {
-  channel: "email",
-  name: "Email (not configured)",
-  async send() {
-    return { ok: false, error: "Email isn't configured (set RESEND_API_KEY, or MAILPIT_URL in development)." };
-  },
-};
+function unconfiguredEmail(reason: string): NotificationProvider {
+  return {
+    channel: "email",
+    name: "Email (not configured)",
+    async send() {
+      return { ok: false, error: reason };
+    },
+  };
+}
 
 /**
- * The provider for a channel. Email: Resend if RESEND_API_KEY is set, else
- * Mailpit if MAILPIT_URL is set (dev), else one that fails with a clear reason,
- * so the row is recorded as failed rather than silently dropped.
+ * The provider for a channel. Email: Resend if RESEND_API_KEY is set (which
+ * needs EMAIL_FROM on a domain verified in Resend), else Mailpit if MAILPIT_URL
+ * is set (dev), else one that fails with a clear reason, so the row is
+ * recorded as failed rather than silently dropped.
  */
 export function providerFor(channel: NotificationChannel): NotificationProvider | null {
   if (channel === "in_app") return inAppProvider;
   if (channel === "email") {
-    const from = process.env.EMAIL_FROM || "Bari_bhara <noreply@baribhara.local>";
-    if (process.env.RESEND_API_KEY) return resendProvider(process.env.RESEND_API_KEY, from);
-    if (process.env.MAILPIT_URL) return mailpitProvider(process.env.MAILPIT_URL, from);
-    return unconfiguredEmail;
+    if (process.env.RESEND_API_KEY) {
+      if (!process.env.EMAIL_FROM) return unconfiguredEmail("Email isn't configured (set EMAIL_FROM).");
+      return resendProvider(process.env.RESEND_API_KEY, process.env.EMAIL_FROM);
+    }
+    if (process.env.MAILPIT_URL) {
+      return mailpitProvider(process.env.MAILPIT_URL, process.env.EMAIL_FROM || "Bari_bhara <noreply@baribhara.local>");
+    }
+    return unconfiguredEmail("Email isn't configured (set RESEND_API_KEY, or MAILPIT_URL in development).");
   }
   return null;
 }

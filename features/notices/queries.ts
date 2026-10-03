@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { getCurrentUser, requireRole } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { pageRange, type Paged } from "@/lib/pagination";
 import { id as idSchema } from "@/lib/zod-fields";
 import type { MyNotice, NoticeOverview } from "@/types/domain";
 
@@ -11,15 +12,25 @@ import type { MyNotice, NoticeOverview } from "@/types/domain";
  * a <Suspense> boundary.
  */
 
-export async function listNotices(): Promise<NoticeOverview[]> {
+export type NoticeListItem = Pick<
+  NoticeOverview,
+  "id" | "title" | "audience" | "publish_at" | "expires_at" | "property_name" | "unit_count" | "read_count"
+>;
+
+/** A page of notices, newest first. Without bodies, which the list doesn't show. */
+export async function listNotices(page = 1): Promise<Paged<NoticeListItem>> {
   await requireRole("landlord");
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("notice_overview")
-    .select("*")
-    .order("publish_at", { ascending: false });
+    .select("id, title, audience, publish_at, expires_at, property_name, unit_count, read_count", {
+      count: "exact",
+    })
+    .order("publish_at", { ascending: false })
+    .order("id")
+    .range(...pageRange(page));
   if (error) throw new Error(`Failed to load notices: ${error.message}`);
-  return data as NoticeOverview[];
+  return { rows: data as NoticeListItem[], total: count ?? 0 };
 }
 
 export type NoticeDetail = NoticeOverview & { units: string[] };
@@ -68,15 +79,18 @@ export async function listTargets() {
   }));
 }
 
-export async function listMyNotices(): Promise<MyNotice[]> {
+/** A page of the tenant's notices, newest first. */
+export async function listMyNotices(page = 1): Promise<Paged<MyNotice>> {
   await requireRole("tenant");
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("my_notices")
-    .select("*")
-    .order("publish_at", { ascending: false });
+    .select("*", { count: "exact" })
+    .order("publish_at", { ascending: false })
+    .order("id")
+    .range(...pageRange(page));
   if (error) throw new Error(`Failed to load notices: ${error.message}`);
-  return data as MyNotice[];
+  return { rows: data as MyNotice[], total: count ?? 0 };
 }
 
 export async function getMyNotice(id: string): Promise<MyNotice | null> {

@@ -98,9 +98,13 @@ test.describe("tenant onboarding with an invite code", () => {
     await signUpTenant(tenant, name);
     await tenant.goto("/tenant/rent");
     await expect(tenant).toHaveURL("/tenant/join");
-    await tenant.getByRole("textbox", { name: "Invite code" }).fill("WRONG-CODE1");
-    await tenant.getByRole("button", { name: "Connect" }).click();
-    await expect(tenant.getByText("That code didn't work.", { exact: false })).toBeVisible();
+    // The redirect to /tenant/join happens client-side, and under load the form
+    // can remount (and empty) after a fill; retry until the wrong code is judged.
+    await expect(async () => {
+      await tenant.getByRole("textbox", { name: "Invite code" }).fill("WRONG-CODE1");
+      await tenant.getByRole("button", { name: "Connect" }).click();
+      await expect(tenant.getByText("That code didn't work.", { exact: false })).toBeVisible({ timeout: 3000 });
+    }).toPass();
     await tenant.getByRole("textbox", { name: "Invite code" }).fill(code.toLowerCase());
     await tenant.getByRole("button", { name: "Connect" }).click();
     await expect(tenant).toHaveURL("/tenant/dashboard");
@@ -140,7 +144,7 @@ test.describe("tenant data isolation", () => {
     await expect(page.getByRole("link", { name: TENANTS.tanvir.name })).toHaveCount(0);
 
     await page.goto(`/tenants/${TENANTS.tanvir.id}`);
-    await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await expect(page.getByText(TENANTS.tanvir.name)).toHaveCount(0);
   });
 });

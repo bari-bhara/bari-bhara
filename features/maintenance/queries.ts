@@ -2,6 +2,7 @@ import "server-only";
 import { getMyTenancies } from "@/features/tenant-portal/queries";
 import { requireRole } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
+import { pageRange, type Paged } from "@/lib/pagination";
 import { id as idSchema } from "@/lib/zod-fields";
 import type {
   MaintenanceCategory,
@@ -23,27 +24,53 @@ const SIGNED_URL_SECONDS = 60 * 60;
 
 export type StatusFilter = MaintenanceStatus | "open" | "all";
 
+export type RequestListItem = Pick<
+  MaintenanceOverview,
+  | "id"
+  | "title"
+  | "status"
+  | "category"
+  | "created_at"
+  | "property_name"
+  | "unit_number"
+  | "tenant_name"
+  | "assigned_to"
+  | "comment_count"
+  | "photo_count"
+>;
+
+/** A page of requests, newest first. Without descriptions, which the list doesn't show. */
 export async function listRequests({
   status = "open",
   propertyId,
   category,
+  page = 1,
 }: {
   status?: StatusFilter;
   propertyId?: string | null;
   category?: MaintenanceCategory | null;
-}): Promise<MaintenanceOverview[]> {
+  page?: number;
+}): Promise<Paged<RequestListItem>> {
   await requireRole("landlord");
   const supabase = await createClient();
 
-  let query = supabase.from("maintenance_overview").select("*");
+  let query = supabase
+    .from("maintenance_overview")
+    .select(
+      "id, title, status, category, created_at, property_name, unit_number, tenant_name, assigned_to, comment_count, photo_count",
+      { count: "exact" },
+    );
   if (status === "open") query = query.in("status", OPEN_STATUSES);
   else if (status !== "all") query = query.eq("status", status);
   if (propertyId && idSchema.safeParse(propertyId).success) query = query.eq("property_id", propertyId);
   if (category) query = query.eq("category", category);
 
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(200);
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(...pageRange(page));
   if (error) throw new Error(`Failed to load requests: ${error.message}`);
-  return data as MaintenanceOverview[];
+  return { rows: data as RequestListItem[], total: count ?? 0 };
 }
 
 export type Photo = { id: string; url: string };
@@ -127,20 +154,20 @@ export async function getRequestForLandlord(id: string): Promise<LandlordRequest
 
 export type TenantRequest = MaintenanceRequest & { home: string };
 
-/** The tenant's own requests, newest first, labelled with their home. */
-export async function listMyRequests(): Promise<TenantRequest[]> {
-  const tenancies = await getMyTenancies();
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("maintenance_requests")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Failed to load your requests: ${error.message}`);
+export type TenantRequestListItem = Pick<MaintenanceRequest, "id" | "title" | "status" | "category" | "created_at">;
 
-  const homes = new Map(
-    tenancies.map((t) => [t.unit_id, `${t.property_name} · Unit ${t.unit_number}`]),
-  );
-  return data.map((r) => ({ ...r, home: homes.get(r.unit_id) ?? "" }));
+/** A page of the tenant's own requests, newest first. */
+export async function listMyRequests(page = 1): Promise<Paged<TenantRequestListItem>> {
+  await requireRole("tenant");
+  const supabase = await createClient();
+  const { data, error, count } = await supabase
+    .from("maintenance_requests")
+    .select("id, title, status, category, created_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(...pageRange(page));
+  if (error) throw new Error(`Failed to load your requests: ${error.message}`);
+  return { rows: data, total: count ?? 0 };
 }
 
 export type TenantRequestDetail = TenantRequest & Thread;
