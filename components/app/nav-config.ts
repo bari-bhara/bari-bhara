@@ -1,5 +1,6 @@
 import {
   Bell,
+  BellRing,
   Building2,
   CreditCard,
   DoorOpen,
@@ -46,6 +47,7 @@ export const NAV_ITEMS: Record<ShellVariant, NavItem[]> = {
     { label: "Payments", href: "/tenant/payments", icon: CreditCard },
     { label: "Maintenance", href: "/tenant/maintenance", icon: Wrench, primary: true },
     { label: "Notices", href: "/tenant/notices", icon: Bell, primary: true },
+    { label: "Reminders", href: "/tenant/notifications", icon: BellRing },
     { label: "Profile", href: "/tenant/profile", icon: UserRound },
   ],
 };

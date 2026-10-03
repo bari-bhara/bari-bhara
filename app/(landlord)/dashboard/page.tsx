@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { describeActivity } from "@/features/dashboard/activity";
 import { getLandlordDashboard } from "@/features/dashboard/queries";
+import { RemindOverdueButton } from "@/features/notifications/components/remind-overdue-button";
 import { MaintenanceStatusBadge } from "@/features/maintenance/components/maintenance-status-badge";
 import { getCurrentOrganization, requireRole } from "@/lib/dal";
 import { formatDate, formatDay, formatMoney, formatMonth } from "@/lib/format";
@@ -119,6 +120,9 @@ export default async function DashboardPage() {
           linkLabel="Rent & bills"
           empty={data.overdue_tenants.length === 0 ? "Everyone is up to date." : null}
         >
+          <div className="mb-3">
+            <RemindOverdueButton count={data.overdue.count} size="sm" />
+          </div>
           <ul className="divide-y" aria-label="Overdue tenants">
             {data.overdue_tenants.map((row) => (
               <li key={`${row.tenant_id}-${row.unit_number}`} className="flex items-center justify-between gap-3 py-2.5">

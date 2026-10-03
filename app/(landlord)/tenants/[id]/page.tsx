@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChargeStatusBadge } from "@/features/charges/components/charge-status-badge";
 import { chargeHref } from "@/features/charges/components/charges-list";
 import { getTenantChargeSummary } from "@/features/charges/queries";
+import { RemindersList } from "@/features/notifications/components/reminders-list";
+import { listReminders } from "@/features/notifications/queries";
 import { InvitePanel } from "@/features/tenants/components/invite-panel";
 import { MoveOutDialog } from "@/features/tenants/components/move-out-dialog";
 import { TenancyHistory } from "@/features/tenants/components/tenancy-history";
@@ -22,10 +24,11 @@ export const metadata: Metadata = { title: "Tenant" };
 
 export default async function TenantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [tenant, organization, balance] = await Promise.all([
+  const [tenant, organization, balance, reminders] = await Promise.all([
     getTenant(id),
     getCurrentOrganization(),
     getTenantChargeSummary(id),
+    listReminders({ tenantId: id }),
   ]);
   if (!tenant) notFound();
 
@@ -187,6 +190,15 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                 tenant.pendingInvite ? formatDate(tenant.pendingInvite.expires_at, timezone) : null
               }
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RemindersList reminders={reminders} timeZone={timezone} />
           </CardContent>
         </Card>
 

@@ -11,6 +11,10 @@ import { PAYMENT_METHOD_LABELS } from "../schema";
 import { ChargeStatusBadge } from "./charge-status-badge";
 import { chargeHref } from "./charges-list";
 import { RecordPaymentDialog } from "./record-payment-dialog";
+import { RemindersList } from "@/features/notifications/components/reminders-list";
+import { SendReminderButton } from "@/features/notifications/components/send-reminder-button";
+import { describeReach } from "@/features/notifications/labels";
+import { getTenantContact, listReminders } from "@/features/notifications/queries";
 import { VoidDialog } from "./void-dialog";
 
 /** One charge with its payments and actions. Used by /rent/[id] and /bills/[id]. */
@@ -19,6 +23,11 @@ export async function ChargeDetailView({ id, category }: { id: string; category:
   if (!charge) notFound();
   // Keep URLs canonical: rent lives under /rent, utilities under /bills.
   if (charge.category !== category) redirect(chargeHref(charge));
+  const [reminders, contact] = await Promise.all([
+    listReminders({ chargeId: charge.id }),
+    getTenantContact(charge.tenant_id),
+  ]);
+  const reach = contact ? describeReach(contact) : null;
 
   const currency = organization?.currency ?? "BDT";
   const timezone = organization?.timezone;
@@ -47,6 +56,9 @@ export async function ChargeDetailView({ id, category }: { id: string; category:
                   currency={currency}
                   today={todayIn(timezone)}
                 />
+              )}
+              {charge.outstanding > 0 && reach && (
+                <SendReminderButton chargeId={charge.id} tenantName={charge.tenant_name} reach={reach} />
               )}
               {livePayments.length === 0 && <VoidDialog kind="charge" id={charge.id} />}
             </>
@@ -129,6 +141,20 @@ export async function ChargeDetailView({ id, category }: { id: string; category:
                 })}
               </ol>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reminders</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {!reach && (
+              <p className="text-sm text-muted-foreground">
+                {charge.tenant_name} has no app login or email address, so reminders can&apos;t reach them.
+              </p>
+            )}
+            <RemindersList reminders={reminders} timeZone={timezone} />
           </CardContent>
         </Card>
       </div>

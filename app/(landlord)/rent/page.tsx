@@ -5,6 +5,7 @@ import {
   type ChargesMonthParams,
 } from "@/features/charges/components/charges-month-view";
 import { GenerateRentButton } from "@/features/charges/components/generate-rent-button";
+import { RemindOverdueButton } from "@/features/notifications/components/remind-overdue-button";
 import { SectionTabs } from "@/features/charges/components/section-tabs";
 import { isMonth } from "@/features/charges/schema";
 import { getCurrentOrganization } from "@/lib/dal";
@@ -26,7 +27,12 @@ export default async function RentPage({
       <PageHeader
         title="Rent"
         description="Monthly rent for every current tenant."
-        actions={generate(month)}
+        actions={
+          <>
+            <RemindOverdueButton />
+            {generate(month)}
+          </>
+        }
       />
       <SectionTabs current="rent" />
       <ChargesMonthView category="rent" params={params} emptyAction={generate} />
