@@ -9,7 +9,7 @@
 - [x] 0. Project documentation
 - [x] 1. Foundation
 - [x] 2. Properties
-- [ ] 3. Tenants
+- [x] 3. Tenants
 - [ ] 4. Rent & bills
 - [ ] 5. Maintenance
 - [ ] 6. Notices
@@ -332,3 +332,12 @@ Branch `feature/tenant-management` from `main`. Commits: db → feature code/UI 
   - Fixed two Phase 1 latent bugs exposed by the first dynamic routes: the shell navs called `usePathname()` outside `<Suspense>` (blocks prerendering under `cacheComponents`), and Tailwind's `content` didn't scan `features/`.
   - `notFound()` from a page inside the layout's Suspense boundary streams the 404 UI with HTTP 200. Tests assert the rendered 404, not the status. A proper `not-found.tsx` belongs to Phase 9.
   - Next 16 keeps visited routes mounted but hidden, so E2E tests use role queries or `filter({ visible: true })` instead of bare `getByText` counts.
+- 2026-10-03: Phase 3 done (branch `feature/tenant-management`). Decisions made during implementation:
+  - **Tenant reads go through `my_tenancies()`**, not RLS on base tables, because RLS can't hide landlord-only columns such as `notes` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). This replaces the tenant read policies listed in §3. `private.user_tenant_ids()` moves to Phase 4, where it's first needed.
+  - Occupancy is an invariant enforced by a `units` trigger (`occupied` ⇔ an active tenancy exists), not just synced. Hand-setting it fails even through the API.
+  - Tenants and tenancies have no delete grant. A tenant can move into another unit after moving out; "add tenant" always creates the first tenancy.
+  - The invite claim lockout is 10 failures, then 24 hours from the last failure. Codes are Crockford base32 and normalized on entry. The landlord can replace a code at any time; the old one stops working.
+  - The tenant portal moved to `app/tenant/(portal)/`. Its layout requires a linked home; unlinked tenants (including new signups) land on `/tenant/join`.
+  - Move-out dates can't be in the future (no scheduled move-outs in v1).
+  - Fixed a mobile layout bug: in grid layouts, `truncate` text and the chip rows widened the page, which pushed the fixed bottom nav off-screen. List grids now use `grid-cols-1`, and chip rows scroll inside their own box.
+  - Database tests stay manual (per the no-unit-tests decision). The occupancy, guard, invite, lockout and isolation rules were exercised in SQL against the seed in a rolled-back transaction; the E2E suite covers the UI flows.

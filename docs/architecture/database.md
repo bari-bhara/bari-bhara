@@ -27,10 +27,11 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `properties` | Buildings; `rent_due_day` | 2 | Implemented (`20261002233120_properties_and_units`) |
 | `units` | Flats; status vacant/occupied/maintenance/inactive | 2 | Implemented (`20261002233120_properties_and_units`) |
 | `property_overview` (view) | Properties + unit/occupied/vacant counts | 2 | Implemented (`20261002233120_properties_and_units`) |
-| `tenants` | Person renting; optional `user_id` link | 3 | Planned |
-| `tenancies` | Tenant ↔ unit over time; move-in/out; never deleted | 3 | Planned |
-| `tenant_invites` | Hashed one-time codes for linking a login | 3 | Planned |
-| `activity_log` | Audit trail + dashboard activity, trigger-written | 3 | Planned |
+| `tenants` | Person renting; optional `user_id` link | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
+| `tenancies` | Tenant ↔ unit over time; move-in/out; never deleted | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
+| `tenant_invites` | Hashed one-time codes for linking a login | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
+| `activity_log` | Audit trail + dashboard activity, trigger-written | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
+| `tenant_overview` (view) | Tenants + current/latest tenancy, unit, property | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
 | `charge_types` | Rent + utility types, extensible per org | 4 | Planned |
 | `charges` | Rent and utility bills; trigger-maintained `amount_paid`/`status` | 4 | Planned |
 | `payments` | Payments against a charge; voided, never deleted | 4 | Planned |
@@ -92,7 +93,7 @@ RLS: members can see the memberships of their organizations. There are no write 
 
 Constraints: `unique (org_id, id)` is the target for child composite FKs and doubles as the `org_id` index.
 
-RLS: org members can select, insert, update and delete (`org_id in (select private.user_org_ids())`). Insertable columns: `org_id, name, address, city, rent_due_day, notes`; updatable: the same minus `org_id`, plus `archived_at`. Tenant read access comes with tenancies in Phase 3.
+RLS: org members can select, insert, update and delete (`org_id in (select private.user_org_ids())`). Insertable columns: `org_id, name, address, city, rent_due_day, notes`; updatable: the same minus `org_id`, plus `archived_at`. Tenants have no direct access; they see their property through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Archiving a property with active tenancies is refused by the app.
 
 ### `units`
 | Column | Type | Notes |
@@ -105,7 +106,7 @@ RLS: org members can select, insert, update and delete (`org_id in (select priva
 | `unit_type` | text, ≤40 | free text, e.g. "2 bed flat", "Shop" |
 | `bedrooms` | smallint 0–20, nullable | |
 | `default_rent` | numeric(12,2) ≥ 0 | suggested rent for new tenancies |
-| `status` | `unit_status` enum (`vacant`, `occupied`, `maintenance`, `inactive`) | default `vacant`. `occupied` is driven by active tenancies (Phase 3 trigger); the app refuses to hand-set it |
+| `status` | `unit_status` enum (`vacant`, `occupied`, `maintenance`, `inactive`) | default `vacant`. Invariant enforced by trigger: `occupied` ⇔ the unit has an active tenancy. Moving in sets it, moving out sets `vacant`; any other write to or from `occupied` fails with `BB003` |
 | `notes` | text, ≤1000 | landlord-only |
 | `created_at`, `updated_at` | timestamptz | `updated_at` maintained by trigger |
 
@@ -116,6 +117,85 @@ RLS: org members can select, insert, update and delete. Insertable columns: ever
 ### `property_overview` (view)
 `security_invoker = true`, so the caller's RLS on `properties` and `units` applies. Columns: the property's `id, org_id, name, address, city, rent_due_day, archived_at, created_at`, plus `unit_count`, `occupied_count`, `vacant_count` (ints). Used by the property list so it is a single query. `select` granted to `authenticated`.
 
+### `tenants`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id` | uuid → organizations | cascade; not updatable |
+| `full_name` | text, 1–120 | |
+| `phone` | text, ≤30 | default `''` |
+| `email` | text, ≤254 | default `''`; unverified, never used for authorization |
+| `notes` | text, ≤1000 | **landlord-only** |
+| `user_id` | uuid → auth.users, nullable | set only by `claim_tenant_invite()`; not writable through the API |
+| `created_at`, `updated_at` | timestamptz | |
+
+Constraints and indexes: `unique (org_id, id)`, `unique (org_id, user_id)`, `tenants (user_id)`, `tenants (org_id, full_name)`.
+
+RLS: org members can select, insert and update. There is no delete; tenant records are history. Insertable: `org_id, full_name, phone, email, notes`; updatable: the same minus `org_id`.
+
+### `tenancies`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id`, `tenant_id`, `unit_id` | uuid | composite FKs `(org_id, tenant_id) → tenants`, `(org_id, unit_id) → units`, **on delete restrict**; not updatable |
+| `monthly_rent`, `security_deposit` | numeric(12,2) ≥ 0 | |
+| `move_in_date` | date | |
+| `move_out_date` | date, nullable | `>= move_in_date` |
+| `move_out_reason` | text, ≤120 | |
+| `move_out_notes` | text, ≤1000 | **landlord-only** |
+| `status` | `tenancy_status` enum (`active`, `moved_out`) | check: `moved_out` ⇔ `move_out_date is not null` |
+| `created_by` | uuid → auth.users | default `auth.uid()` |
+| `created_at`, `updated_at` | timestamptz | |
+
+Indexes: partial unique `tenancies (unit_id) where status = 'active'` (one current tenancy per unit), `(tenant_id, org_id)`, `(unit_id, org_id)`, `(created_by)`.
+
+Triggers:
+- `tenancies_guard` (before insert/update): new active tenancies need a unit that isn't `inactive` in a non-archived property (`BB001`). A moved-out tenancy's status, dates and amounts are frozen (`BB002`).
+- `tenancies_sync_unit_occupancy` (after insert/update of status): sets the unit `occupied` / `vacant`.
+- `tenancies_log_activity`: `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`.
+
+RLS: org members can select, insert and update. There is no delete; moving out is an update. Insertable: `org_id, tenant_id, unit_id, monthly_rent, security_deposit, move_in_date` (status starts `active`); updatable: `monthly_rent, security_deposit, status, move_out_date, move_out_reason, move_out_notes`.
+
+### `tenant_invites`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id`, `tenant_id` | uuid | composite FK to tenants, cascade |
+| `code_hash` | text, unique | sha256 hex of the normalized code. **Not selectable** by `authenticated` |
+| `expires_at` | timestamptz | default now() + 7 days |
+| `used_at`, `used_by` | timestamptz, uuid | set on a successful claim |
+| `created_by`, `created_at` | | |
+
+RLS: org members can select (every column except `code_hash`). There are no write grants; rows are written only by the invite RPCs.
+
+`private.invite_claim_failures` (`user_id` PK, `failed_count`, `last_failed_at`) is not exposed. After 10 failed claims, claiming is locked for 24 hours from the last failure; a success clears the row.
+
+### `activity_log`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id` | uuid → organizations | cascade |
+| `actor_id` | uuid → auth.users, nullable | `auth.uid()` at write time (null for seed/system writes) |
+| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED` (more in later phases) |
+| `entity_type`, `entity_id` | text, uuid | e.g. `tenant`, `tenancy` |
+| `metadata` | jsonb | event details |
+| `created_at` | timestamptz | |
+
+Indexes: `(org_id, created_at desc)`, `(entity_id)`, `(actor_id)`. RLS: org members can select. Written only by `private.log_activity()` from security-definer triggers and RPCs.
+
+### `tenant_overview` (view)
+`security_invoker = true`. Each tenant (`id, org_id, full_name, phone, email, has_login, created_at`) with their current tenancy, or latest one if they've moved out (`tenancy_id, tenancy_status, monthly_rent, move_in_date, move_out_date, unit_id, unit_number, property_id, property_name`). Backs the tenant list (search, filters, sort, pagination).
+
+### RPCs
+| Function | Security | Purpose |
+|---|---|---|
+| `add_tenant(p_unit_id, p_full_name, p_phone, p_email, p_notes, p_monthly_rent, p_security_deposit, p_move_in_date) → uuid` | invoker | Creates a tenant and their first tenancy atomically, under the caller's RLS |
+| `create_tenant_invite(p_tenant_id) → (invite_code, invite_expires_at)` | definer; checks org membership | Issues a 10-character Crockford base32 code (50 bits, from `gen_random_bytes`), replacing any unused one. Stores only the hash and returns the plaintext once. `BB004` not found, `BB005` already linked |
+| `claim_tenant_invite(p_code) → text` | definer | Normalizes the code (case, spaces, dashes, `O→0`, `I/L→1`), checks the lockout, and links `tenants.user_id = auth.uid()`. Returns `linked`, `invalid`, `locked`, `not_tenant` or `already_linked`, so the failure count isn't rolled back |
+| `my_tenancies() → table` | definer, stable | The caller's tenancies with **tenant-safe columns only**: tenancy dates and amounts, unit number/floor/type/bedrooms, property name/address/city/rent due day, organization name/currency/timezone. No notes ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)) |
+
+Custom SQLSTATEs: `BB001` unit unavailable, `BB002` tenancy frozen, `BB003` occupancy mismatch, `BB004` not found, `BB005` already linked. The app maps them in [`lib/postgres-errors.ts`](../../lib/postgres-errors.ts).
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|
@@ -123,7 +203,10 @@ RLS: org members can select, insert, update and delete. Insertable columns: ever
 | `private.custom_access_token_hook(event)` | Auth hook | Adds `app_metadata.user_role` to JWTs. Used for redirects only |
 | `private.user_org_ids()` | security definer, stable | Org ids for `auth.uid()`; used in policies |
 | `private.is_org_owner(org_id)` | security definer, stable | Owner check for org updates |
-| `private.set_updated_at()` | trigger | Maintains `updated_at` on profiles, organizations, properties, units |
+| `private.set_updated_at()` | trigger | Maintains `updated_at` on profiles, organizations, properties, units, tenants, tenancies |
+| `private.log_activity(...)` | security definer | Inserts an `activity_log` row with `actor_id = auth.uid()` |
+| `private.guard_tenancy()`, `private.sync_unit_occupancy()`, `private.enforce_unit_occupancy()` | triggers, security definer | Tenancy rules and the occupancy invariant (see `tenancies`, `units`) |
+| `private.log_tenant_created()`, `private.log_tenancy_activity()` | triggers, security definer | Activity log entries |
 
 Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
@@ -138,9 +221,9 @@ Default privileges: tables, sequences and functions created in `public` grant **
 |---|---|
 | `anon` | Nothing |
 | Landlord / manager | Full CRUD where `org_id in (select private.user_org_ids())` |
-| Tenant | Read own tenant row, tenancies, their units/properties, charges, payments, non-internal maintenance updates, targeted notices, own notifications. Insert own maintenance requests, comments and notice reads |
+| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Planned for later phases: charges, payments, non-internal maintenance updates, targeted notices, own notifications; insert own maintenance requests, comments and notice reads |
 
-Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `user_tenant_ids()`, `can_see_notice(notice_id)`, `custom_access_token_hook(event)`.
+Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. Planned: `user_tenant_ids()` (Phase 4, for charges/payments), `can_see_notice(notice_id)` (Phase 6).
 
 ## Storage
 | Bucket | Visibility | Path | Access |
