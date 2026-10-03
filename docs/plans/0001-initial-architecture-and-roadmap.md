@@ -1,0 +1,262 @@
+# 0001 — Bari_bhara: Assessment, Architecture & Build Plan
+
+- **Status:** Accepted
+- **Date:** 2026-10-03
+- **Related ADRs:** [0001](../adr/0001-supabase-as-backend.md) · [0002](../adr/0002-tenant-onboarding-via-invite-code.md) · [0003](../adr/0003-org-based-multi-tenancy-and-rls.md) · [0004](../adr/0004-unified-charges-table-and-derived-overdue.md) · [0005](../adr/0005-notifications-provider-interface-resend.md) · [0006](../adr/0006-local-supabase-cli-workflow.md)
+- **Database reference:** [architecture/database.md](../architecture/database.md)
+
+### Progress
+- [x] 0. Project documentation
+- [x] 1. Foundation
+- [ ] 2. Properties
+- [ ] 3. Tenants
+- [ ] 4. Rent & bills
+- [ ] 5. Maintenance
+- [ ] 6. Notices
+- [ ] 7. Dashboards
+- [ ] 8. Notifications
+- [ ] 9. Polish
+- [ ] 10. Deployment
+
+> This is a living document. When a phase lands, tick its box. When the plan changes, edit the plan and record the reason under "Changelog" at the bottom. Significant architectural changes also need a new ADR.
+
+## Context
+Bari_bhara is a rental and property management SaaS for landlords and tenants: properties, units, tenancies, rent and utility charges, payments, maintenance, notices and reminders. It runs on Next.js + Supabase and deploys to Vercel. The repo is a fresh **Supabase Next.js starter**, so this plan covers the full architecture and a phased roadmap, then details Phase 1, which is implemented first.
+
+Decisions the user made:
+- **Tenant onboarding:** the tenant signs up, then enters an invite code the landlord generated, which links their login to the tenant record. No service-role key is needed.
+- **Supabase dev:** a local stack via the Supabase CLI + Docker. Migrations are pushed to the hosted project.
+- **Reminders v1:** in-app notifications plus email via Resend, behind a provider interface.
+- **Locale:** currency stored per organization (default BDT, ৳). The UI is English, with strings kept centralized so Bengali can be added later.
+
+---
+
+## 0. Project documentation (done first, before Phase 1)
+The user wants this plan and all future project documents kept in the repo, where any agent can refer to them. The layout follows the common `docs/` + ADR (Architecture Decision Record) convention:
+```
+docs/
+  README.md                     index of all docs + how to add new ones (naming, status, template)
+  plans/
+    0001-initial-architecture-and-roadmap.md   ← this plan (repo-relative links, status: Accepted)
+  adr/                          one short, immutable record per significant decision (MADR-style:
+    0000-template.md              Context / Decision / Consequences / Status)
+    0001-supabase-as-backend.md
+    0002-tenant-onboarding-via-invite-code.md
+    0003-org-based-multi-tenancy-and-rls.md
+    0004-unified-charges-table-and-derived-overdue.md
+    0005-notifications-provider-interface-resend.md
+    0006-local-supabase-cli-workflow.md
+  architecture/
+    database.md                 living ERD, table/RLS reference; updated with every migration
+```
+Conventions:
+- Files are numbered and kebab-cased.
+- ADRs are never rewritten. A changed decision gets a new ADR that marks the old one "Superseded by NNNN".
+- Plans are living documents: the status line and phase checkboxes are updated as work lands.
+- Add a short "Project docs" section to [AGENTS.md](../../AGENTS.md), outside the auto-generated Next.js block. It tells agents to read `docs/README.md`, follow the relevant plan and ADRs, and add or update docs when they change architecture. [CLAUDE.md](../../CLAUDE.md) already imports AGENTS.md, so Claude picks this up too.
+- Save a memory pointing at this convention.
+- Commit on branch `docs/initial-plan` (from `dev`) as `docs: add project documentation structure and initial plan`.
+- **Then stop.** The user reviews the docs before Phase 1 begins.
+
+---
+
+## 1. Repository assessment
+| Area | State |
+|---|---|
+| Framework | **Next.js 16.3.6** (App Router, `proxy.ts` replaces middleware, `cacheComponents: true` in [next.config.ts](../../next.config.ts)), React 19.3, TS strict |
+| Styling | Tailwind **3.4** + shadcn/ui (new-york, [components.json](../../components.json)), next-themes, lucide |
+| UI present | [components/ui/](../../components/ui/): button, card, input, label, badge, checkbox, dropdown-menu. Starter forms: login, sign-up, forgot/update password |
+| Supabase | `@supabase/ssr` 0.12 + supabase-js 2.117. [lib/supabase/server.ts](../../lib/supabase/server.ts), [client.ts](../../lib/supabase/client.ts), [proxy.ts](../../lib/supabase/proxy.ts) (`getClaims()` session refresh + login redirect). Uses the new `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| Auth | Email/password pages under `app/auth/*`, `auth/confirm` route. No roles, no profiles |
+| Database | **None**: no `supabase/` folder, no migrations, no CLI installed. [app/instruments/page.tsx](../../app/instruments/page.tsx) is demo code |
+| Issues | Two lockfiles (`package-lock.json` + `pnpm-lock.yaml`); deps pinned to `"latest"`; `eslint-config-next` 15.3.1 vs next 16; no `.env.example`; no tests |
+
+---
+
+## 2. Architecture
+```
+Browser (mobile-first React UI)
+   ↓  Server Components (reads) · Server Actions (writes) · few Client Components (forms, interactivity)
+Next.js 16 on Vercel
+   ├─ proxy.ts ........ session refresh + *optimistic* role redirect (reads JWT claim, no DB call)
+   ├─ lib/dal.ts ...... verifySession()/requireRole() with React cache(), used by layouts & actions
+   └─ lib/notifications  provider interface → InAppProvider, ResendEmailProvider (server-only)
+   ↓  @supabase/ssr (user's JWT, publishable key only)
+Supabase
+   ├─ Auth (email/password; Custom Access Token Hook adds `user_role` claim)
+   ├─ Postgres: normalized schema, triggers (balances, occupancy, activity log), RPCs
+   ├─ RLS on every table: the real security boundary
+   └─ Storage: private buckets, path-scoped policies, signed URLs
+```
+Principles:
+- Authorization lives in **RLS**. Proxy and layouts only redirect for UX.
+- There is no separate backend. Multi-row operations (rent generation, invite claiming) are Postgres RPCs.
+- **No service-role key** anywhere in the app. Server-only secrets are `RESEND_API_KEY` and `EMAIL_FROM`.
+- With `cacheComponents`, auth-dependent data is read inside `<Suspense>`. Follow `node_modules/next/dist/docs/01-app/02-guides/authentication-with-cache-components.md` before writing auth/layout code.
+- Keep the root-level `app/`, `components/` and `lib/` layout that already exists (no `src/` move). Add `features/<domain>/` for domain components, queries, actions and zod schemas.
+
+### Folder structure
+```
+app/
+  (public)/page.tsx, login/, signup/, forgot-password/, update-password/
+  auth/confirm/route.ts
+  (landlord)/layout.tsx  → requireRole('landlord'); sidebar + mobile bottom nav
+    dashboard/ properties/[id] units/[id] tenants/{new,[id]} rent/[id] bills/ payments/
+    maintenance/[id] notices/{new,[id]} settings/
+  tenant/
+    join/                → enter invite code (signed-in tenant without linked record)
+    (portal)/layout.tsx  → requireRole('tenant') + linked check
+      dashboard/ rent/ payments/ maintenance/{new,[id]} notices/[id] profile/
+components/ui/           shadcn primitives
+components/app/          AppShell, Sidebar, MobileNav, PageHeader, EmptyState, StatCard,
+                         StatusBadge, DataTable↔CardList (responsive), ConfirmDialog, Money
+features/<domain>/       queries.ts, actions.ts, schema.ts (zod), components/
+lib/supabase/            server.ts, client.ts, proxy.ts, database.types.ts (generated)
+lib/dal.ts, lib/format.ts (money/date, Asia/Dhaka), lib/strings.ts, lib/notifications/
+types/                   domain types derived from generated DB types
+supabase/                config.toml, migrations/, seed.sql
+docs/                    project documentation (see §0)
+e2e/                     Playwright specs
+```
+
+---
+
+## 3. Database design
+
+### Entity relationships
+```
+auth.users 1─1 profiles (role: landlord|tenant)
+organizations 1─* organization_members *─1 profiles        (owner|manager: future property managers)
+organizations 1─* properties 1─* units 1─* tenancies *─1 tenants (─0..1 auth user via user_id)
+tenants 1─* tenant_invites
+tenancies 1─* charges ─*─1 charge_types      charges 1─* payments
+units/tenancies 1─* maintenance_requests 1─* maintenance_updates, maintenance_photos
+organizations 1─* notices 1─* notice_units ; notices 1─* notice_reads
+organizations 1─* notifications (→ tenant, → charge)     organizations 1─* activity_log
+```
+
+### Tables (all `id uuid default gen_random_uuid()`, `created_at timestamptz default now()`; money is `numeric(12,2)`; lowercase snake_case)
+- **profiles**: `id → auth.users`, `role` enum, `full_name`, `phone`. Created by a trigger on `auth.users` insert. Role comes from signup metadata, restricted to `landlord|tenant`. Users cannot update `role` (column privilege revoked).
+- **organizations**: `name`, `currency` (default `'BDT'`), `timezone` (default `'Asia/Dhaka'`). Signing up as a landlord automatically creates an org and an `owner` membership. This puts "multiple landlords / property managers" in place now at almost no cost.
+- **organization_members**: `(org_id, user_id)` PK, `role` enum `owner|manager`.
+- **properties**: `org_id`, `name`, `address`, `city`, `rent_due_day` (1–28, default 5), `archived_at`.
+- **units**: `org_id`, `property_id`, `unit_number`, `floor`, `unit_type`, `bedrooms`, `default_rent`, `status` enum `vacant|occupied|maintenance|inactive`. `unique(property_id, unit_number)`. A trigger keeps `occupied`/`vacant` in sync with active tenancies.
+- **tenants** (the person): `org_id`, `full_name`, `phone`, `email`, `notes`, `user_id` nullable → auth.users. `unique(org_id, user_id)`. Tenants can exist without a login.
+- **tenancies**: `org_id`, `tenant_id`, `unit_id`, `monthly_rent`, `security_deposit`, `move_in_date`, `move_out_date`, `move_out_reason`, `move_out_notes`, `status` enum `active|moved_out`. **Partial unique index**: one active tenancy per unit. Moving out updates the row; nothing is ever deleted.
+- **tenant_invites**: `org_id`, `tenant_id`, `code_hash` (sha256), `expires_at` (7 days), `used_at`, `created_by`. RPC `claim_tenant_invite(code)` is security definer and checks: the caller is a tenant, the code is unexpired and unused, and the tenant record is unlinked. It then sets `tenants.user_id = auth.uid()`. Codes are 10 characters of base32 (~50 bits), single use. Failed attempts are counted per user, with a lockout after 10.
+- **charge_types**: `org_id` (null = system default), `key`, `label`, `category` enum `rent|utility`. Seeded with rent, electricity, gas, water, internet, other. New bill types are just new rows.
+- **charges**: one table for **both rent and utility bills**, because they share one lifecycle, one payments FK and one balance query. The UI still separates /rent and /bills by category. Columns: `org_id`, `tenancy_id`, `unit_id`, `charge_type_id`, `billing_month` (date, first of month), `amount`, `due_date`, `amount_paid` (trigger-maintained), `status` enum `unpaid|partially_paid|paid|void`, `notes`. Rent is idempotent through a partial unique index on `(tenancy_id, billing_month)` where the type is rent.
+- **payments**: `org_id`, `charge_id`, `amount > 0`, `paid_on`, `method` enum `cash|bank_transfer|bkash|nagad|card|other`, `reference`, `recorded_by`, `voided_at`, `void_reason`. An after insert/update trigger recomputes `charges.amount_paid` and `status`, and rejects overpayment. Corrections are voids, never deletes.
+- **Overdue** is not stored, so it can never drift without a cron job. The view `charge_balances` (`security_invoker = true`) exposes `outstanding` and `effective_status`, which becomes `overdue` when the charge is unpaid or partially paid and `due_date` is before today in the org's timezone. All dashboards and tenant balances read this view.
+- **maintenance_requests**: `org_id`, `unit_id`, `tenancy_id`, `tenant_id`, `created_by`, `category` enum (plumbing, electrical, air_conditioning, water, door_lock, internet, appliance, other), `title`, `description`, `status` enum `pending|in_progress|resolved|cancelled`, `assigned_to` (text, for future vendors), `resolved_at`, `updated_at`. A trigger forces `status='pending'` on tenant inserts and allows tenants only `pending→cancelled`.
+- **maintenance_updates**: `request_id`, `author_id`, `body`, `is_internal`, `status_from`, `status_to`. Status changes write a row automatically, which gives the request its history.
+- **maintenance_photos**: `request_id`, `storage_path`. Private bucket `maintenance-photos`, path `{org_id}/{request_id}/{uuid}.{ext}`. Storage policies check the folder against the org or the tenant's own request. Photos are served through signed URLs.
+- **notices**: `org_id`, `title`, `body`, `audience` enum `all|property|units`, `property_id`, `publish_at`, `expires_at`, `created_by`. **notice_units**: `(notice_id, unit_id)`. **notice_reads**: `(notice_id, user_id)` PK, `read_at`. Targeting is evaluated **dynamically** in RLS, so a tenant who moves in later sees current notices with no fan-out rows.
+- **notifications**: `org_id`, `tenant_id`, `recipient_user_id` (nullable), `type` enum (payment_reminder, …), `channel` enum `in_app|email|sms|whatsapp`, `charge_id`, `subject`, `message`, `status` enum `pending|sent|failed`, `sent_at`, `read_at`, `error`, `created_by`. There is one row per channel delivery.
+- **activity_log**: `org_id`, `actor_id`, `event_type` (TENANT_CREATED, TENANT_MOVED_OUT, RENT_CREATED, PAYMENT_RECORDED, MAINTENANCE_CREATED, MAINTENANCE_STATUS_CHANGED, NOTICE_CREATED, …), `entity_type`, `entity_id`, `metadata jsonb`. Written by security-definer triggers. It powers the dashboard's "recent activity" and doubles as the audit trail.
+
+### Integrity
+- Every child table carries `org_id`. **Composite FKs** (e.g. `(org_id, property_id) → properties(org_id, id)`) make cross-org mismatches impossible, and RLS stays a cheap single-column check.
+- CHECK constraints: amounts ≥ 0, `move_out_date >= move_in_date`, `expires_at > publish_at`, and `billing_month` is the first of the month.
+
+### Indexes
+- Every FK column, plus `org_id`.
+- `units(property_id, status)`, `tenancies(tenant_id)`, partial `tenancies(unit_id) where status='active'`.
+- `charges(tenancy_id, billing_month)`, partial `charges(org_id, due_date) where status in ('unpaid','partially_paid')`.
+- `payments(charge_id)`, `maintenance_requests(org_id, status, created_at desc)`, `notices(org_id, publish_at desc)`, `activity_log(org_id, created_at desc)`, `tenants(org_id, full_name)` (search).
+
+### RLS strategy
+- RLS is enabled on every table. Revoke all privileges from `anon`. `authenticated` gets only the needed privileges, with column-level revokes (e.g. `profiles.role`).
+- Helpers live in an unexposed `private` schema as `security definer stable` functions with `set search_path = ''`:
+  - `private.user_org_ids()`: orgs the user is a member of.
+  - `private.user_tenant_ids()`: `tenants.id where user_id = auth.uid()`.
+  - `private.can_see_notice(notice_id)`.
+- Policies wrap helpers as `(select private.fn())` so Postgres evaluates them once per query instead of per row.
+- **Landlord or manager:** full CRUD where `org_id in (select private.user_org_ids())`.
+- **Tenant (read-only unless noted):**
+  - Own `tenants` row and own `tenancies`, plus the `units` and `properties` of those tenancies.
+  - `charges` and `payments` through own tenancies.
+  - Maintenance requests: select and insert own. The insert is checked against the tenant's active tenancy unit.
+  - `maintenance_updates`: rows on own requests where `not is_internal`, and they can insert non-internal comments.
+  - Notices: rows where `can_see_notice`.
+  - `notice_reads`: insert and select own.
+  - Own `notifications`.
+- **Custom Access Token Hook** (`private.custom_access_token_hook`) adds `user_role` to the JWT. Only `proxy.ts` uses it, for redirects. RLS never trusts `user_metadata`.
+
+---
+
+## 4. Implementation roadmap (one feature branch + small commits per phase; app works after each)
+| Phase | Branch | Scope | Done when |
+|---|---|---|---|
+| **1 Foundation** | `feature/foundation` | Housekeeping, Supabase local, base schema (profiles/orgs/members), auth + roles, DAL, app shells | See Phase 1 detail |
+| 2 Properties | `feature/property-management` | properties, units migrations + RLS; list/detail/create/edit; vacant/occupied filters | Landlord B can't see landlord A's data (checked manually with seeded accounts) |
+| 3 Tenants | `feature/tenant-management` | tenants, tenancies, invites, occupancy trigger, activity_log; add tenant (creates tenant + tenancy), list (search/filter/sort/paginate), details, move-out, invite code + `/tenant/join` | Move-out keeps history; tenant links via code |
+| 4 Rent & bills | `feature/rent-management` | charge_types, charges, payments, balance triggers, `charge_balances` view, `generate_monthly_rent` RPC; /rent, /bills, /payments, record/void payment, tenant /rent & /payments | Status is correct for partial, full and overdue (checked against seed data) |
+| 5 Maintenance | `feature/maintenance` | requests, updates, photos + storage bucket/policies; tenant create/list/cancel; landlord filter/status/internal notes/comments | Tenant can't see internal notes or others' requests |
+| 6 Notices | `feature/notices` | notices, notice_units, notice_reads; create with targeting; tenant inbox, unread badge, mark read | Targeting works for all, property, units and expired notices |
+| 7 Dashboards | `feature/dashboards` | Landlord and tenant dashboards as aggregated RPCs/views (one round-trip each), recent activity | Answers the §38 questions at a glance |
+| 8 Notifications | `feature/notifications` | `lib/notifications` provider interface, InApp + Resend providers, "Send reminder" (single + bulk overdue), tenant notification list | Rows record sent/failed; email arrives in dev (Resend test) |
+| 9 Polish | `feature/polish` | Mobile pass at 360–1440px, a11y audit, loading/empty/error states, `error.tsx`/`not-found.tsx`, perf (select columns, pagination), full Playwright suite | All tests green |
+| 10 Deploy | `feature/deployment` | Hosted Supabase config (auth URLs, custom SMTP via Resend, token hook enabled), `supabase db push`, Vercel env vars, security review (`supabase db lint`, advisors) | Production smoke test |
+
+### Phase 1 detail (implemented first)
+1. **Housekeeping**
+   - Standardize on **pnpm**: delete `package-lock.json`.
+   - Pin `next`, `@supabase/ssr` and `@supabase/supabase-js` to their installed versions. Bump `eslint-config-next` to 16.x.
+   - Remove the starter demo: `app/instruments`, `app/protected`, `components/tutorial`, `hero`, `deploy-button`, `next-logo`, `supabase-logo`, `env-var-warning`.
+2. **Dependencies**
+   - Runtime: `zod`, `react-hook-form`, `@hookform/resolvers`, `sonner`, `date-fns`.
+   - Dev: `supabase` (CLI), `@playwright/test`.
+   - shadcn: dialog, sheet, select, form, table, tabs, separator, skeleton, avatar, sonner.
+3. **Supabase**
+   - `pnpm supabase init`, then configure `supabase/config.toml` (site_url, redirect URLs, enable the custom access token hook).
+   - Migration `…_foundation.sql`:
+     - enums;
+     - `profiles`, `organizations`, `organization_members`;
+     - the `handle_new_user` trigger (creates the profile, plus an org and owner membership for landlords);
+     - `private` helpers;
+     - the token hook;
+     - RLS, grants and revokes.
+   - `supabase/seed.sql`: landlord A, landlord B and tenant users with fake data.
+   - `pnpm db:types` generates `lib/supabase/database.types.ts`. Make `createClient<Database>()` typed in server, client and proxy.
+4. **Auth & routing**
+   - Rework the existing forms: signup gets a role choice ("I manage property" / "I'm a tenant").
+   - Move routes to `/login`, `/signup`, `/forgot-password`, `/update-password`, and keep `auth/confirm`.
+   - `lib/supabase/proxy.ts`: public allowlist, unauthenticated → `/login?next=`, role redirect from the `user_role` claim (landlord ↔ `/tenant/*` blocked). After login, go to `/dashboard` or `/tenant/dashboard`.
+   - `lib/dal.ts`: `verifySession()` and `requireRole()`, memoized with `cache()`. These are used in group layouts and every server action. Expired sessions go to `/login`.
+5. **UI shell**
+   - Landlord `AppShell` has a sidebar on desktop and a bottom nav + sheet on mobile. The tenant shell has its own nav.
+   - Add placeholder pages for every nav item, each with an `EmptyState`.
+   - Add shared `PageHeader`, `EmptyState` and `StatCard`, plus a sonner toaster.
+6. **Config**: `.env.example` lists `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`. Package scripts: `db:start`, `db:reset`, `db:types`, `test:e2e`, `typecheck`.
+7. **Tests** (no unit tests for now, per the user; E2E only)
+   - Playwright: signup/login redirects per role, logout, unauthenticated redirect, tenant blocked from `/dashboard`.
+
+---
+
+## 5. Risks & mitigations
+- **Next 16 / Cache Components differences:** auth reads must sit in Suspense boundaries. Read the bundled docs before each auth or data change.
+- **Timezone bugs** in overdue and billing months: compute in SQL using `organizations.timezone`. Store `billing_month` as a date.
+- **Invite code brute-force:** high-entropy, hashed, expiring, single-use codes with an attempt lockout.
+- **Payment correctness:** trigger-maintained totals, an overpayment guard, voids instead of deletes. Each phase is checked manually against seed data.
+- **RLS gaps:** unit and DB tests are skipped for now, so the risk here is higher. Mitigations: Playwright cross-account checks, manual checks with the seeded landlord B and tenant B, and `supabase db lint` plus the security advisors before deploy. Adding pgTAP later is recommended.
+- **Email deliverability:** Resend needs a verified domain. The default Supabase SMTP is heavily rate-limited, so use Resend SMTP for auth emails in production.
+- **Docker** must be installed for local Supabase.
+- **Tenants without email or login** get no reminders. The UI shows this clearly ("No email on file").
+
+## 6. Verification (per phase)
+- `pnpm typecheck && pnpm lint && pnpm build`
+- `pnpm db:reset` (migrations + seed apply cleanly)
+- `pnpm test:e2e` (Playwright against local Supabase + seed, at mobile 390px and desktop 1440px viewports)
+- Manual check in `pnpm dev` with the seeded landlord, tenant and second landlord accounts. Report results honestly before marking a phase complete.
+
+---
+
+## Changelog
+- 2026-10-03: Initial version. The user decided: tenants onboard by invite code, local Supabase via the CLI, in-app + Resend reminders, BDT with an English UI. Unit and DB tests are skipped for now (E2E only).
+- 2026-10-03: Phase 1 done (branch `feature/foundation`). Decisions made during implementation:
+  - A signup without a valid `role` in its metadata defaults to `tenant`, the least-privileged role.
+  - Local email confirmation is off (`supabase/config.toml`) so local signup is instant. It must be **on** in production.
+  - Local env vars go in `.env.development.local`, which `next dev` loads ahead of the hosted values in `.env.local`.
+  - shadcn components are added with `shadcn@2.3.0`, the last version that targets Tailwind v3.
+  - `/tenant/join` (claiming an invite code) is deferred to Phase 3, since it needs the `tenants` table.
