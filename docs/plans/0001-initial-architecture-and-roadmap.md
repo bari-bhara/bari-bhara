@@ -295,6 +295,53 @@ Branch `feature/tenant-management` from `main`. Commits: db → feature code/UI 
    - Tenant signup now lands on `/tenant/join`.
 5. **Docs:** ADR 0007, `architecture/database.md`, tick Phase 3, changelog.
 
+### Phase 4 detail (Rent, bills & payments)
+Branch `feature/rent-management` from `main`. Follows [ADR 0004](../adr/0004-unified-charges-table-and-derived-overdue.md). Commits: db → landlord UI → tenant UI → tests → docs.
+
+1. **Migration `…_charges_and_payments.sql`**
+   - Enums: `charge_category` (`rent|utility`), `charge_status` (`unpaid|partially_paid|paid|void`), `payment_method` (`cash|bank_transfer|bkash|nagad|card|other`).
+   - `charge_types`: `org_id` (null = system default), `key`, `label`, `category`. `unique nulls not distinct (org_id, key)`. Seeded system types: rent, electricity, gas, water, internet, other. Custom (org) types must be `utility`; there's no UI for them yet.
+   - `charges`:
+     - Columns: `org_id`, `tenancy_id`, `unit_id`, `charge_type_id`, `category`, `billing_month`, `amount` (> 0), `due_date`, `amount_paid`, `status`, `description` (≤200, tenant-visible), `voided_at`, `void_reason`, `created_by`, timestamps.
+     - FKs: composite `(org_id, tenancy_id) → tenancies`, `(org_id, unit_id) → units`.
+     - A before trigger fills `unit_id` and `category` from the tenancy and type, and checks that the type belongs to the org or the system.
+     - Checks: `billing_month` is the 1st; `0 ≤ amount_paid ≤ amount`.
+     - **Status is derived in a before trigger** from `amount_paid` vs `amount`. The only status a user can set is `void`, and only with no live payments. A voided charge is frozen.
+     - Partial unique index `(tenancy_id, billing_month) where category = 'rent' and status <> 'void'` makes rent generation idempotent and lets a voided rent charge be regenerated.
+   - `payments`: `org_id`, `charge_id` (composite FK), `amount` (> 0), `paid_on`, `method`, `reference` (≤100), `recorded_by`, `voided_at`, `void_reason`, `created_at`.
+     - After insert / void, a trigger locks the charge, recomputes `amount_paid` from live payments and **rejects overpayment**.
+     - There are no deletes. The only update is voiding, once, never undone. No payments on void charges.
+   - `private.org_today(org_id)`: today's date in the org's timezone (security definer, so tenants can use it).
+   - Views (`security_invoker`):
+     - `charge_balances`: charges + type label + `outstanding` + `effective_status` (`overdue` when unpaid/partially paid and `due_date < org_today`). Used by both roles.
+     - `charge_overview`: `charge_balances` + tenant, unit and property names, for landlord lists.
+   - RPC `generate_monthly_rent(p_month date, p_property_id uuid default null) → int` (invoker): one rent charge per active tenancy (moved in by the month's end) in the property, or in all of the caller's non-archived properties. Amount = tenancy rent; due = the property's `rent_due_day` in that month; `on conflict do nothing`. Returns the number created.
+   - Activity: `RENT_GENERATED` (one per RPC call, with count), `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`.
+   - RLS:
+     - Landlord/manager: select/insert/update on `charges` and `payments` in their orgs. There are no deletes.
+     - Tenant: **direct select** on their own non-void `charges` and non-void `payments`. These tables have no landlord-only columns, which ADR 0007 allows. Uses new helpers `private.user_tenant_ids()` and `private.user_tenancy_ids()`.
+     - `charge_types`: system rows for everyone signed in; org rows for members and that org's tenants.
+   - Seed, relative to `current_date` so overdue stays deterministic: rent for the last 3 months in both orgs via the RPC. Payments make one charge paid, one partly paid, one previous-month charge unpaid (always overdue), plus one voided payment. Two utility bills: one overdue, one paid.
+2. **Landlord UI** (`features/charges/`, `features/payments/`)
+   - `/rent`: month picker (`?month=YYYY-MM`, default this month in the org timezone); stats (billed, collected, outstanding, overdue); "Generate rent for <month>"; status and property filters.
+   - `/bills`: same layout for utilities, plus a type filter; `/bills/new` (active tenancy, type, month, amount, due date, description).
+   - `/rent/[id]`, `/bills/[id]`: charge detail with payments, **Record payment** (amount defaults to outstanding, date ≤ today, method, reference), **Void payment** (reason), **Void charge** (reason; only with no live payments).
+   - `/payments`: all payments, newest first, method filter, show-voided toggle, 20 per page.
+   - The tenant page gets a balance card (outstanding total + recent charges).
+3. **Tenant UI**
+   - `/tenant/rent`: amount owed, then their charges (overdue first) with status.
+   - `/tenant/payments`: payment history.
+4. **Tests (E2E):**
+   - Generating rent is idempotent.
+   - A partial payment shows *Partly paid*, and paying the rest shows *Paid*.
+   - Overpayment is rejected.
+   - Voiding a payment restores the balance.
+   - A previous-month unpaid charge shows *Overdue*.
+   - Adding a bill works.
+   - The tenant sees their charges and payments.
+   - Landlord B sees none of A's charges.
+5. **Docs:** `architecture/database.md`, tick Phase 4, changelog.
+
 ---
 
 ## 5. Risks & mitigations
