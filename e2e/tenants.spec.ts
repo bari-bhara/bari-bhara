@@ -1,34 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { TENANTS, USERS, login, signUpTenant, uniqueName } from "./helpers";
-
-/** Creates a property with one unit, returns to the unit page. */
-async function createUnit(page: Page) {
-  const property = uniqueName("E2E Tenancy House");
-  await page.goto("/properties/new");
-  await page.getByLabel("Property name").fill(property);
-  await page.getByRole("button", { name: "Add property" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: property })).toBeVisible();
-  await page.getByRole("link", { name: "Add unit" }).first().click();
-  await page.getByLabel("Unit number").fill("T1");
-  await page.getByLabel(/Monthly rent/).fill("14000");
-  await page.getByRole("button", { name: "Add unit" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: property })).toBeVisible();
-  await page.getByRole("link", { name: "Unit T1" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Unit T1" })).toBeVisible();
-  return property;
-}
-
-/** From a vacant unit's page, adds a tenant; ends on the tenant's page. */
-async function addTenantToUnit(page: Page, name: string) {
-  await page.getByRole("link", { name: "Add tenant" }).first().click();
-  await expect(page.getByRole("heading", { level: 1, name: "Add tenant" })).toBeVisible();
-  await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Phone (optional)").fill("+8801799000000");
-  // Rent is prefilled from the unit's default rent.
-  await expect(page.getByRole("textbox", { name: /Monthly rent/ })).toHaveValue("14000");
-  await page.getByRole("button", { name: "Add tenant" }).click();
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
-}
+import { expect, test } from "@playwright/test";
+import { TENANTS, USERS, addTenantToUnit, createUnit, login, signUpTenant, uniqueName } from "./helpers";
 
 test.describe("landlord manages tenants", () => {
   test.beforeEach(async ({ page }) => {
