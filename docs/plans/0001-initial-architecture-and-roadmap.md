@@ -12,7 +12,7 @@
 - [x] 3. Tenants
 - [x] 4. Rent & bills
 - [x] 5. Maintenance
-- [ ] 6. Notices
+- [x] 6. Notices
 - [ ] 7. Dashboards
 - [ ] 8. Notifications
 - [ ] 9. Polish
@@ -472,3 +472,11 @@ Branch `feature/notices`, stacked on `feature/maintenance`.
   - Changing status with a note writes two timeline rows: the trigger's status row, then the note.
   - Added `lib/supabase/insert.ts` `filledByTrigger()` for inserts whose NOT NULL columns are filled by triggers (also used for `charges`).
   - There's no UI or policy for deleting photos yet.
+- 2026-10-03: Phase 6 done (branch `feature/notices`, stacked on `feature/maintenance`). Decisions made during implementation:
+  - Tenant visibility is the set function `private.user_visible_notice_ids()`, used in policies as `id in (select …)` so it's evaluated once per query. `can_see_notice(id)` remains as the single-notice form named in §3.
+  - Notices have no edit; delete and re-create. This keeps read receipts honest.
+  - "Publish at" and "Hide after" are entered as wall-clock time in the org's time zone and converted with `zonedDateTimeToIso()` in `lib/format.ts`.
+  - A notice is marked read by a client effect on its page, not during server rendering, so link prefetching can't mark it read.
+  - The unread badge comes from a `loadBadges` function the tenant layout passes to `AppShell`. It runs inside the nav's existing Suspense boundary, so the shell stays static and `components/app` doesn't import feature code. `refresh()` after marking read updates it.
+  - Added `lib/supabase/rpc.ts` `sqlNull()`, because generated RPC argument types don't allow SQL NULL.
+  - The seed backdates maintenance status rows so the timelines read in order.

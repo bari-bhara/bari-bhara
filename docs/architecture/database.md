@@ -41,9 +41,10 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `maintenance_updates` | Comments, status history, internal notes | 5 | Implemented (`20261003090154_maintenance`) |
 | `maintenance_overview` (view) | Requests + names + photo/comment counts | 5 | Implemented (`20261003090154_maintenance`) |
 | `maintenance_photos` | Storage paths for request photos | 5 | Implemented (`20261003090154_maintenance`) |
-| `notices` | Announcements with audience targeting | 6 | Planned |
-| `notice_units` | Selected-unit targeting | 6 | Planned |
-| `notice_reads` | Per-user read receipts | 6 | Planned |
+| `notices` | Announcements with audience targeting | 6 | Implemented (`20261003100000_notices`) |
+| `notice_units` | Selected-unit targeting | 6 | Implemented (`20261003100000_notices`) |
+| `my_notices`, `notice_overview` (views) | Tenant inbox with read state; landlord list with targeting and read counts | 6 | Implemented (`20261003100000_notices`) |
+| `notice_reads` | Per-user read receipts | 6 | Implemented (`20261003100000_notices`) |
 | `notifications` | Per-channel reminder deliveries | 8 | Planned |
 
 ## Implemented tables
@@ -178,7 +179,7 @@ RLS: org members can select (every column except `code_hash`). There are no writ
 | `id` | uuid PK | |
 | `org_id` | uuid → organizations | cascade |
 | `actor_id` | uuid → auth.users, nullable | `auth.uid()` at write time (null for seed/system writes) |
-| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`, `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED` |
+| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED`, `MAINTENANCE_CREATED`, `MAINTENANCE_STATUS_CHANGED`, `NOTICE_CREATED` |
 | `entity_type`, `entity_id` | text, uuid | e.g. `tenant`, `tenancy` |
 | `metadata` | jsonb | event details |
 | `created_at` | timestamptz | |
@@ -316,6 +317,41 @@ At most 6 per request (`BB010`); bad or missing paths raise `BB011`. RLS (select
 | `create_maintenance_request(p_tenancy_id, p_category, p_title, p_description) → (request_id, request_org_id)` | definer | The caller must be the tenant of that **active** tenancy. Returns ids so the browser can upload photos to the right path |
 | `cancel_maintenance_request(p_request_id) → text` | definer | The reporting tenant can cancel while `pending`. Returns `cancelled`, `not_found` or `not_pending` |
 
+### `notices`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | `unique (org_id, id)` |
+| `org_id` | uuid → organizations | cascade |
+| `title` | text, 1–150 | |
+| `body` | text, 1–5000 | |
+| `audience` | `notice_audience` enum (`all`, `property`, `units`) | |
+| `property_id` | uuid, nullable | composite FK → properties; set ⇔ audience `property` |
+| `publish_at` | timestamptz | default now(); future = scheduled |
+| `expires_at` | timestamptz, nullable | `> publish_at` |
+| `created_by`, `created_at`, `updated_at` | | |
+
+Indexes: `(org_id, publish_at desc)`, `(property_id, org_id)`, `(created_by)`. There are no landlord-only columns.
+
+RLS:
+- Members can select, insert and delete. There is no update; delete and re-create instead.
+- Tenants can select `id in private.user_visible_notice_ids()`: published, unexpired, and aimed at one of their **active** tenancies (all / that property / that unit). This is evaluated live, with no fan-out rows.
+
+Trigger: `NOTICE_CREATED` activity.
+
+### `notice_units`
+`(notice_id, unit_id)` PK, `org_id`. Composite FKs to notices and units (cascade); `(unit_id, org_id)` and `(org_id, notice_id)` indexes. Rows only for audience `units`. RLS: members only (select, insert).
+
+### `notice_reads`
+`(notice_id, user_id)` PK, `read_at`. `user_id` defaults to `auth.uid()`; cascade with the notice and the user. RLS: users can select their own rows, and members can select reads of their org's notices. Insert is allowed only for yourself and only for a notice you can currently see. Insertable: `notice_id`.
+
+### `my_notices`, `notice_overview` (views)
+`security_invoker = true`.
+- `my_notices`: notice columns + `is_read` for the caller. Tenants get only notices they can see; it powers the inbox and the unread count.
+- `notice_overview`: notices + `property_name`, `unit_count`, `read_count`, for landlords.
+
+### `create_notice(p_org_id, p_title, p_body, p_audience, p_property_id, p_unit_ids uuid[], p_publish_at, p_expires_at) → uuid`
+Security invoker. Inserts the notice and its `notice_units` rows atomically. A null `p_publish_at` means now. `units` with no units raises `BB012`; units from another org fail the composite FK.
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|
@@ -333,6 +369,8 @@ At most 6 per request (`BB010`); bad or missing paths raise `BB011`. RLS (select
 | `private.log_rent_generated(...)` | security definer | Logs `RENT_GENERATED` for orgs the caller belongs to |
 | `private.can_access_maintenance_request(id)`, `private.can_access_maintenance_photo_path(name)` | security definer, stable | Member of the request's org, or its tenant; the path form also checks `{org_id}/{request_id}/…` (storage policies) |
 | `private.prepare_maintenance_request()`, `private.log_maintenance_request()`, `private.prepare_maintenance_update()`, `private.prepare_maintenance_photo()` | triggers, security definer | Maintenance rules, status history, activity |
+| `private.user_visible_notice_ids()`, `private.can_see_notice(id)` | security definer, stable | Notices aimed at the caller's active tenancies (set form used in policies) |
+| `private.log_notice_created()` | trigger, security definer | `NOTICE_CREATED` activity |
 
 Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
@@ -347,9 +385,9 @@ Default privileges: tables, sequences and functions created in `public` grant **
 |---|---|
 | `anon` | Nothing |
 | Landlord / manager | Full CRUD where `org_id in (select private.user_org_ids())` |
-| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Reads their own maintenance requests, **non-internal** updates and photos; creates and cancels requests via RPCs; comments publicly. Planned: targeted notices, own notifications, notice reads |
+| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Reads their own maintenance requests, **non-internal** updates and photos; creates and cancels requests via RPCs; comments publicly. Reads notices aimed at their current homes and records their own reads. Planned: own notifications |
 
-Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. `user_tenant_ids()`, `user_tenancy_ids()`, `user_tenant_org_ids()`, `org_today(org_id)`. Planned: `can_see_notice(notice_id)` (Phase 6).
+Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. `user_tenant_ids()`, `user_tenancy_ids()`, `user_tenant_org_ids()`, `org_today(org_id)`. `user_visible_notice_ids()`, `can_see_notice(notice_id)`.
 
 ## Storage
 | Bucket | Visibility | Path | Access |
