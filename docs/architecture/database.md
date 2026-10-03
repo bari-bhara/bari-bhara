@@ -32,10 +32,11 @@ Change "Planned" to "Implemented (migration file)" as each table lands, and expa
 | `tenant_invites` | Hashed one-time codes for linking a login | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
 | `activity_log` | Audit trail + dashboard activity, trigger-written | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
 | `tenant_overview` (view) | Tenants + current/latest tenancy, unit, property | 3 | Implemented (`20261003005507_tenants_and_tenancies`) |
-| `charge_types` | Rent + utility types, extensible per org | 4 | Planned |
-| `charges` | Rent and utility bills; trigger-maintained `amount_paid`/`status` | 4 | Planned |
-| `payments` | Payments against a charge; voided, never deleted | 4 | Planned |
-| `charge_balances` (view) | `outstanding`, `effective_status` incl. overdue | 4 | Planned |
+| `charge_types` | Rent + utility types, extensible per org | 4 | Implemented (`20261003020150_charges_and_payments`) |
+| `charges` | Rent and utility bills; trigger-maintained `amount_paid`/`status` | 4 | Implemented (`20261003020150_charges_and_payments`) |
+| `payments` | Payments against a charge; voided, never deleted | 4 | Implemented (`20261003020150_charges_and_payments`) |
+| `charge_overview`, `payment_overview` (views) | Landlord lists with tenant/unit/property names | 4 | Implemented (`20261003020150_charges_and_payments`) |
+| `charge_balances` (view) | `outstanding`, `effective_status` incl. overdue | 4 | Implemented (`20261003020150_charges_and_payments`) |
 | `maintenance_requests` | Tenant-reported issues | 5 | Planned |
 | `maintenance_updates` | Comments, status history, internal notes | 5 | Planned |
 | `maintenance_photos` | Storage paths for request photos | 5 | Planned |
@@ -176,7 +177,7 @@ RLS: org members can select (every column except `code_hash`). There are no writ
 | `id` | uuid PK | |
 | `org_id` | uuid → organizations | cascade |
 | `actor_id` | uuid → auth.users, nullable | `auth.uid()` at write time (null for seed/system writes) |
-| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED` (more in later phases) |
+| `event_type` | text, `^[A-Z][A-Z_]*$` | `TENANT_CREATED`, `TENANT_MOVED_IN`, `TENANT_MOVED_OUT`, `TENANT_INVITE_CREATED`, `TENANT_LINKED`, `RENT_GENERATED`, `BILL_CREATED`, `CHARGE_VOIDED`, `PAYMENT_RECORDED`, `PAYMENT_VOIDED` |
 | `entity_type`, `entity_id` | text, uuid | e.g. `tenant`, `tenancy` |
 | `metadata` | jsonb | event details |
 | `created_at` | timestamptz | |
@@ -196,6 +197,71 @@ Indexes: `(org_id, created_at desc)`, `(entity_id)`, `(actor_id)`. RLS: org memb
 
 Custom SQLSTATEs: `BB001` unit unavailable, `BB002` tenancy frozen, `BB003` occupancy mismatch, `BB004` not found, `BB005` already linked. The app maps them in [`lib/postgres-errors.ts`](../../lib/postgres-errors.ts).
 
+### `charge_types`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id` | uuid → organizations, nullable | null = system default |
+| `key` | text, `^[a-z][a-z0-9_]{0,39}$` | `unique nulls not distinct (org_id, key)` |
+| `label` | text, 1–60 | |
+| `category` | `charge_category` enum (`rent`, `utility`) | check: only the system `rent` type is `rent`; custom types are utilities |
+
+Seeded by the migration: `rent`, `electricity`, `gas`, `water`, `internet`, `other`. RLS: everyone signed in can read system types; org types are visible to members and that org's tenants. There are no write grants yet (custom types get a UI later).
+
+### `charges`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | `unique (org_id, id)` for payments' composite FK |
+| `org_id`, `tenancy_id` | uuid | composite FK → tenancies, restrict |
+| `unit_id` | uuid | **filled by trigger** from the tenancy; composite FK → units |
+| `charge_type_id` | uuid → charge_types | restrict |
+| `category` | `charge_category` | **copied by trigger** from the type |
+| `billing_month` | date | must be the 1st of a month |
+| `amount` | numeric(12,2) > 0 | fixed once created (void and re-create to correct) |
+| `due_date` | date | |
+| `amount_paid` | numeric(12,2) | sum of live payments, **trigger-maintained**; `0 ≤ amount_paid ≤ amount` |
+| `status` | `charge_status` enum (`unpaid`, `partially_paid`, `paid`, `void`) | **derived by trigger** from `amount_paid`; users can only set `void` |
+| `description` | text, ≤200 | tenant-visible |
+| `voided_at`, `void_reason` | | `status = 'void'` ⇔ `voided_at is not null` |
+| `created_by`, `created_at`, `updated_at` | | |
+
+Indexes: partial unique `(tenancy_id, billing_month) where category = 'rent' and status <> 'void'` (idempotent rent; a voided rent charge can be regenerated), `(tenancy_id, org_id)`, `(unit_id, org_id)`, `(charge_type_id)`, `(created_by)`, `(org_id, billing_month)`, partial `(org_id, due_date) where status in ('unpaid','partially_paid')`.
+
+Triggers: `charges_prepare` (before insert/update): derived columns, status derivation, void rules. A charge with live payments can't be voided (`BB007`); a void charge is frozen (`BB006`). `charges_log_activity`: `BILL_CREATED` (utilities), `CHARGE_VOIDED`.
+
+RLS: members can select, insert and update; the charged tenant can select their own **non-void** charges directly (no landlord-only columns; [ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). There is no delete. Insertable: `org_id, tenancy_id, charge_type_id, billing_month, amount, due_date, description`; updatable: `status, void_reason`.
+
+### `payments`
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `org_id`, `charge_id` | uuid | composite FK → charges, restrict |
+| `amount` | numeric(12,2) > 0 | |
+| `paid_on` | date | the app rejects future dates |
+| `method` | `payment_method` enum (`cash`, `bank_transfer`, `bkash`, `nagad`, `card`, `other`) | |
+| `reference` | text, ≤100 | transaction ID etc. |
+| `recorded_by`, `created_at` | | |
+| `voided_at`, `void_reason` | | set once; never undone |
+
+Indexes: `(charge_id, org_id)`, `(recorded_by)`, `(org_id, paid_on desc)`.
+
+Triggers:
+- `payments_guard` (before): no payments on void charges (`BB006`); a void payment is frozen (`BB009`).
+- `payments_apply` (after insert / update of `voided_at`): locks the charge, recomputes `amount_paid` from live payments, **rejects overpayment** (`BB008`), and logs `PAYMENT_RECORDED` / `PAYMENT_VOIDED`.
+
+RLS: members can select, insert and update (void). The paying tenant can select their own non-void payments. There is no delete. Insertable: `org_id, charge_id, amount, paid_on, method, reference`; updatable: `voided_at, void_reason`.
+
+### `charge_balances` (view)
+`security_invoker = true`. Every `charges` column plus `type_key`, `type_label`, `outstanding` (0 for void, else `amount - amount_paid`) and `effective_status`: `overdue` when unpaid or partly paid and `due_date < private.org_today(org_id)`, otherwise the stored status. **All balance reads use this view** ([ADR 0004](../adr/0004-unified-charges-table-and-derived-overdue.md)). Tenants read it too.
+
+### `charge_overview`, `payment_overview` (views)
+`security_invoker = true`, for landlord lists. `charge_overview` = `charge_balances` + `tenant_id, tenant_name, unit_number, property_id, property_name`. `payment_overview` = payment columns + the charge's `category`, `billing_month`, `type_label` + tenant, unit and property names. Tenants get no rows (they can't read tenancies/tenants).
+
+### `generate_monthly_rent(p_month date, p_property_id uuid default null) → int`
+Security invoker. Creates one rent charge per active tenancy with `monthly_rent > 0` that moved in by the month's end, in one property or all of the caller's non-archived properties. Amount = the tenancy's rent; due date = the property's `rent_due_day` in that month; description "Rent for <Month YYYY>". `on conflict do nothing` on the rent index, so it's idempotent. Returns the number created and logs one `RENT_GENERATED` per organization (via `private.log_rent_generated`, which checks membership).
+
+Custom SQLSTATEs added: `BB006` charge void, `BB007` charge has live payments, `BB008` overpayment, `BB009` payment already void.
+
 ### Functions & triggers
 | Name | Kind | Purpose |
 |---|---|---|
@@ -206,7 +272,11 @@ Custom SQLSTATEs: `BB001` unit unavailable, `BB002` tenancy frozen, `BB003` occu
 | `private.set_updated_at()` | trigger | Maintains `updated_at` on profiles, organizations, properties, units, tenants, tenancies |
 | `private.log_activity(...)` | security definer | Inserts an `activity_log` row with `actor_id = auth.uid()` |
 | `private.guard_tenancy()`, `private.sync_unit_occupancy()`, `private.enforce_unit_occupancy()` | triggers, security definer | Tenancy rules and the occupancy invariant (see `tenancies`, `units`) |
-| `private.log_tenant_created()`, `private.log_tenancy_activity()` | triggers, security definer | Activity log entries |
+| `private.log_tenant_created()`, `private.log_tenancy_activity()`, `private.log_charge_activity()` | triggers, security definer | Activity log entries |
+| `private.prepare_charge()`, `private.guard_payment()`, `private.apply_payment()` | triggers, security definer | Charge status derivation, payment rules, balance upkeep |
+| `private.org_today(org_id)` | security definer, stable | Today in the org's time zone; used by `charge_balances` so tenants get correct overdue status |
+| `private.user_tenant_ids()`, `private.user_tenancy_ids()`, `private.user_tenant_org_ids()` | security definer, stable | The caller's tenant records, tenancies and landlord orgs; used in tenant policies |
+| `private.log_rent_generated(...)` | security definer | Logs `RENT_GENERATED` for orgs the caller belongs to |
 
 Default privileges: tables, sequences and functions created in `public` grant **nothing** to `anon`/`authenticated`, so every migration must grant explicitly.
 
@@ -221,9 +291,9 @@ Default privileges: tables, sequences and functions created in `public` grant **
 |---|---|
 | `anon` | Nothing |
 | Landlord / manager | Full CRUD where `org_id in (select private.user_org_ids())` |
-| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Planned for later phases: charges, payments, non-internal maintenance updates, targeted notices, own notifications; insert own maintenance requests, comments and notice reads |
+| Tenant | No direct access to `tenants`, `tenancies`, `units` or `properties` (they hold landlord-only notes); reads go through `my_tenancies()` ([ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md)). Links their login with `claim_tenant_invite()`. Reads their own non-void `charges` and `payments` directly (and `charge_balances`), plus charge types. Planned for later phases: non-internal maintenance updates, targeted notices, own notifications; insert own maintenance requests, comments and notice reads |
 
-Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. Planned: `user_tenant_ids()` (Phase 4, for charges/payments), `can_see_notice(notice_id)` (Phase 6).
+Helpers in the `private` schema (not exposed through the API): `user_org_ids()`, `is_org_owner(org_id)`, `custom_access_token_hook(event)`. `user_tenant_ids()`, `user_tenancy_ids()`, `user_tenant_org_ids()`, `org_today(org_id)`. Planned: `can_see_notice(notice_id)` (Phase 6).
 
 ## Storage
 | Bucket | Visibility | Path | Access |

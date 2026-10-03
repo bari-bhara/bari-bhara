@@ -10,7 +10,7 @@
 - [x] 1. Foundation
 - [x] 2. Properties
 - [x] 3. Tenants
-- [ ] 4. Rent & bills
+- [x] 4. Rent & bills
 - [ ] 5. Maintenance
 - [ ] 6. Notices
 - [ ] 7. Dashboards
@@ -388,3 +388,12 @@ Branch `feature/rent-management` from `main`. Follows [ADR 0004](../adr/0004-uni
   - Move-out dates can't be in the future (no scheduled move-outs in v1).
   - Fixed a mobile layout bug: in grid layouts, `truncate` text and the chip rows widened the page, which pushed the fixed bottom nav off-screen. List grids now use `grid-cols-1`, and chip rows scroll inside their own box.
   - Database tests stay manual (per the no-unit-tests decision). The occupancy, guard, invite, lockout and isolation rules were exercised in SQL against the seed in a rolled-back transaction; the E2E suite covers the UI flows.
+- 2026-10-03: Phase 4 done (branch `feature/rent-management`). Decisions made during implementation:
+  - `charges.category` is copied from the charge type by trigger, so the "one rent per tenancy per month" index can be a plain partial unique index. It excludes void charges, so voided rent can be regenerated.
+  - Charge **status is derived by a trigger** from `amount_paid`. Users can only set `void`, and only with no live payments. Amounts are fixed once created: void and re-create to correct (no edit UI).
+  - Overdue uses `private.org_today(org_id)` (security definer), so tenants, who can't read `organizations`, still get the org-local date.
+  - Tenants read their own non-void `charges` and `payments` directly under RLS, as ADR 0007 allows for tables without landlord-only columns. Landlord lists use the `charge_overview` / `payment_overview` views.
+  - `generate_monthly_rent` takes `(p_month, p_property_id default null)`; null means all of the caller's active properties, which is what `/rent` uses. It skips tenancies that move in after the month ends and doesn't prorate.
+  - The seed is relative to `current_date`, so last month's unpaid charges are always overdue in tests.
+  - Rent and bills share one nav item; each page has a Rent / Utility bills switcher.
+  - The tenant pages format money with the first tenancy's currency. Fine while landlords use one currency; revisit if a tenant rents from orgs with different currencies.
