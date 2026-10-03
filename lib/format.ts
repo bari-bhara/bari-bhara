@@ -42,3 +42,15 @@ export function ordinal(n: number) {
       : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
   return `${n}${suffix}`;
 }
+
+/** Today's date as "YYYY-MM-DD" in `timeZone`, for date inputs and comparisons. */
+export function todayIn(timeZone = DEFAULT_TIME_ZONE) {
+  // en-CA formats dates as YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date());
+}
+
+/** Formats a plain "YYYY-MM-DD" date (no time zone shift). */
+export function formatDay(day: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  return formatDate(new Date(Date.UTC(year, month - 1, date)), "UTC");
+}

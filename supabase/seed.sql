@@ -82,3 +82,45 @@ from (values
   ('bbbbbbbb-0000-0000-0000-000000000001'::uuid, '201', '2', 'Penthouse', 4, 75000, 'maintenance')
 ) as v (property_id, unit_number, floor, unit_type, bedrooms, default_rent, status)
 join public.properties p on p.id = v.property_id;
+
+-------------------------------------------------------------------------------
+-- Tenants & tenancies (Phase 3). Unit status follows tenancies via triggers.
+--   cccccccc-…  Landlord A's tenants; Tanvir is linked to tenant.a@example.com
+--   dddddddd-…  Landlord B's tenants; Farzana is NOT linked yet
+-- Local-only invite code for Farzana (log in as tenant.b, go to /tenant/join):
+--   B4R1B-H4RA5
+-------------------------------------------------------------------------------
+
+insert into public.tenants (id, org_id, full_name, phone, email, user_id)
+select v.id, p.org_id, v.full_name, v.phone, v.email, v.user_id
+from (values
+  ('cccccccc-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'Tanvir Ahmed',  '+8801711000001', 'tenant.a@example.com', '33333333-3333-3333-3333-333333333333'::uuid),
+  ('cccccccc-0000-0000-0000-000000000002'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'Rahim Uddin',   '+8801711000002', '',                     null),
+  ('cccccccc-0000-0000-0000-000000000003'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'Sumaiya Khan',  '+8801711000003', 'sumaiya@example.com',  null),
+  ('cccccccc-0000-0000-0000-000000000004'::uuid, 'aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'Nusrat Jahan',  '+8801711000004', '',                     null),
+  ('dddddddd-0000-0000-0000-000000000001'::uuid, 'bbbbbbbb-0000-0000-0000-000000000001'::uuid, 'Imran Hossain', '+8801722000001', '',                     null),
+  ('dddddddd-0000-0000-0000-000000000002'::uuid, 'bbbbbbbb-0000-0000-0000-000000000001'::uuid, 'Farzana Islam', '+8801722000002', 'tenant.b@example.com', null)
+) as v (id, property_id, full_name, phone, email, user_id)
+join public.properties p on p.id = v.property_id;
+
+insert into public.tenancies (
+  org_id, tenant_id, unit_id, monthly_rent, security_deposit, move_in_date,
+  move_out_date, move_out_reason, status
+)
+select
+  u.org_id, v.tenant_id, u.id, v.monthly_rent, v.security_deposit, v.move_in_date::date,
+  v.move_out_date::date, v.move_out_reason, v.status::public.tenancy_status
+from (values
+  ('cccccccc-0000-0000-0000-000000000001'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'A1',  18000, 36000, '2026-01-01', null,         '',            'active'),
+  ('cccccccc-0000-0000-0000-000000000002'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'A2',  25000, 50000, '2025-06-01', null,         '',            'active'),
+  ('cccccccc-0000-0000-0000-000000000003'::uuid, 'aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'B1',  18000, 36000, '2025-01-01', '2026-08-31', 'Lease ended', 'moved_out'),
+  ('cccccccc-0000-0000-0000-000000000004'::uuid, 'aaaaaaaa-0000-0000-0000-000000000002'::uuid, '1A',  15000, 30000, '2026-03-15', null,         '',            'active'),
+  ('dddddddd-0000-0000-0000-000000000001'::uuid, 'bbbbbbbb-0000-0000-0000-000000000001'::uuid, '101', 40000, 80000, '2025-11-01', null,         '',            'active'),
+  ('dddddddd-0000-0000-0000-000000000002'::uuid, 'bbbbbbbb-0000-0000-0000-000000000001'::uuid, '102', 40000, 80000, '2026-09-01', null,         '',            'active')
+) as v (tenant_id, property_id, unit_number, monthly_rent, security_deposit, move_in_date, move_out_date, move_out_reason, status)
+join public.units u on u.property_id = v.property_id and u.unit_number = v.unit_number;
+
+insert into public.tenant_invites (org_id, tenant_id, code_hash, expires_at)
+select org_id, id, encode(extensions.digest('B4R1BH4RA5', 'sha256'), 'hex'), now() + interval '30 days'
+from public.tenants
+where id = 'dddddddd-0000-0000-0000-000000000002';

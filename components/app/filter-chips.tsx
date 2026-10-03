@@ -14,7 +14,9 @@ export type FilterChip = {
  */
 export function FilterChips({ label, chips }: { label: string; chips: FilterChip[] }) {
   return (
-    <nav aria-label={label} className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    // min-w-0 + max-w-full: in grid/flex parents the chips scroll inside the
+    // nav instead of widening the page (which pushes the fixed mobile nav off-screen).
+    <nav aria-label={label} className="min-w-0 max-w-full overflow-x-auto">
       <ul className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
         {chips.map((chip) => (
           <li key={chip.href}>

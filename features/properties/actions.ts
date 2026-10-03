@@ -83,6 +83,21 @@ export async function setPropertyArchived(
   if (!idSchema.safeParse(id).success) return fail(NOT_FOUND);
 
   const supabase = await createClient();
+  if (archived) {
+    const { count, error: countError } = await supabase
+      .from("tenancies")
+      .select("id, unit:units!inner(property_id)", { count: "exact", head: true })
+      .eq("status", "active")
+      .eq("unit.property_id", id);
+    if (countError) {
+      console.error("Count active tenancies failed", countError);
+      return fail(GENERIC_ERROR);
+    }
+    if (count) {
+      return fail("Tenants still live here. Move them out before archiving the property.");
+    }
+  }
+
   const { data, error } = await supabase
     .from("properties")
     .update({ archived_at: archived ? new Date().toISOString() : null })
