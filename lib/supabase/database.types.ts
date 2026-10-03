@@ -260,6 +260,49 @@ isOneToOne: false
       referencedColumns: ["org_id","id"]
     }
                   ]
+                },"notifications": {
+                  Row: {
+                    "channel": Database["public"]['Enums']["notification_channel"],"charge_id": string | null,"created_at": string,"created_by": string | null,"error": string,"id": string,"message": string,"org_id": string,"read_at": string | null,"recipient_email": string,"recipient_user_id": string | null,"sent_at": string | null,"status": Database["public"]['Enums']["notification_status"],"subject": string,"tenant_id": string,"type": Database["public"]['Enums']["notification_type"]
+                  }
+                  Insert: {
+                    "channel": Database["public"]['Enums']["notification_channel"],"charge_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"error"?: string,"id"?: string,"message": string,"org_id": string,"read_at"?: string | null,"recipient_email"?: string,"recipient_user_id"?: string | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"subject": string,"tenant_id": string,"type": Database["public"]['Enums']["notification_type"]
+                  }
+                  Update: {
+                    "channel"?: Database["public"]['Enums']["notification_channel"],"charge_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"error"?: string,"id"?: string,"message"?: string,"org_id"?: string,"read_at"?: string | null,"recipient_email"?: string,"recipient_user_id"?: string | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"subject"?: string,"tenant_id"?: string,"type"?: Database["public"]['Enums']["notification_type"]
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notifications_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_balances"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notifications_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notifications_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charges"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notifications_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenant_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notifications_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"org_id": string,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
@@ -671,6 +714,9 @@ isOneToOne: false
 "landlord_dashboard":
 { Args: { "p_org_id": string }; Returns: Json
                            },
+"mark_notifications_read":
+{ Args: { "p_ids"?: (string)[] }; Returns: number
+                           },
 "my_tenancies":
 { Args: Record<PropertyKey, never>; Returns: {
               "bedrooms": number,"currency": string,"floor": string,"monthly_rent": number,"move_in_date": string,"move_out_date": string,"organization_name": string,"property_address": string,"property_city": string,"property_name": string,"rent_due_day": number,"security_deposit": number,"status": Database["public"]['Enums']["tenancy_status"],"tenancy_id": string,"timezone": string,"unit_id": string,"unit_number": string,"unit_type": string
@@ -681,7 +727,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","notice_audience": "all"|"property"|"units","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
+            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","notice_audience": "all"|"property"|"units","notification_channel": "in_app"|"email"|"sms"|"whatsapp","notification_status": "pending"|"sent"|"failed","notification_type": "payment_reminder","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -797,7 +843,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"notice_audience": ["all", "property", "units"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
+            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"notice_audience": ["all", "property", "units"],"notification_channel": ["in_app", "email", "sms", "whatsapp"],"notification_status": ["pending", "sent", "failed"],"notification_type": ["payment_reminder"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
           }
         }
 } as const
