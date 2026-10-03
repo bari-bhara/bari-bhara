@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { PROPERTIES, USERS, login } from "./helpers";
 
 test("landlord can reach every section from the navigation", async ({ page, isMobile }) => {
   await login(page, USERS.landlordA.email);
@@ -28,7 +28,16 @@ test("landlord can reach every section from the navigation", async ({ page, isMo
 
 test("pages don't overflow horizontally", async ({ page }) => {
   await login(page, USERS.landlordA.email);
-  for (const path of ["/dashboard", "/settings", "/tenants"]) {
+  const paths = [
+    "/dashboard",
+    "/settings",
+    "/tenants",
+    "/properties",
+    `/properties/${PROPERTIES.landlordA.id}`,
+    "/units",
+    "/units/new",
+  ];
+  for (const path of paths) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     const overflow = await page.evaluate(

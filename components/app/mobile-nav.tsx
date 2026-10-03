@@ -14,11 +14,18 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, isNavItemActive, type ShellVariant } from "./nav-config";
-import { SidebarNav } from "./sidebar-nav";
+import { SidebarNavList } from "./sidebar-nav";
 
-/** Bottom tab bar for phones: primary destinations plus a "More" sheet. */
+/** Highlights the current section. Render inside <Suspense> (see MobileNavBar). */
 export function MobileNav({ variant }: { variant: ShellVariant }) {
-  const pathname = usePathname();
+  return <MobileNavBar variant={variant} pathname={usePathname()} />;
+}
+
+/**
+ * Bottom tab bar for phones: primary destinations plus a "More" sheet.
+ * With pathname "" nothing is highlighted (the Suspense fallback).
+ */
+export function MobileNavBar({ variant, pathname }: { variant: ShellVariant; pathname: string }) {
   const [open, setOpen] = useState(false);
   const items = NAV_ITEMS[variant];
   const primary = items.filter((item) => item.primary);
@@ -66,7 +73,11 @@ export function MobileNav({ variant }: { variant: ShellVariant }) {
                 <SheetTitle>Menu</SheetTitle>
                 <SheetDescription className="sr-only">All sections</SheetDescription>
               </SheetHeader>
-              <SidebarNav variant={variant} onNavigate={() => setOpen(false)} />
+              <SidebarNavList
+                variant={variant}
+                pathname={pathname}
+                onNavigate={() => setOpen(false)}
+              />
             </SheetContent>
           </Sheet>
         </li>

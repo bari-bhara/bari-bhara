@@ -5,15 +5,25 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, isNavItemActive, type ShellVariant } from "./nav-config";
 
-export function SidebarNav({
+/** Highlights the current section. Render inside <Suspense> (see SidebarNavList). */
+export function SidebarNav(props: { variant: ShellVariant; onNavigate?: () => void }) {
+  return <SidebarNavList {...props} pathname={usePathname()} />;
+}
+
+/**
+ * The nav links for a given path. Without a path (pathname "") nothing is
+ * highlighted, which makes it the Suspense fallback on dynamic routes, where
+ * the URL is only known at request time.
+ */
+export function SidebarNavList({
   variant,
+  pathname,
   onNavigate,
 }: {
   variant: ShellVariant;
+  pathname: string;
   onNavigate?: () => void;
 }) {
-  const pathname = usePathname();
-
   return (
     <ul className="grid gap-1">
       {NAV_ITEMS[variant].map((item) => {
