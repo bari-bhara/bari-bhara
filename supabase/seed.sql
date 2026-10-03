@@ -244,3 +244,60 @@ begin
   where tc.tenant_id = 'dddddddd-0000-0000-0000-000000000001' and tc.status = 'active';
 end;
 $$;
+
+-------------------------------------------------------------------------------
+-- Notices (Phase 6). Tanvir (tenant.a, Green View A1) should see exactly:
+--   "Water supply interruption" (all, already read), "Lift maintenance on
+--   Friday" (Green View), "Rooftop access for unit A1" (units: A1).
+-- Hidden from him: the A2-only notice, the expired and scheduled ones, and B's.
+-------------------------------------------------------------------------------
+
+do $$
+declare
+  v_org_a uuid := (select org_id from public.organization_members where user_id = '11111111-1111-1111-1111-111111111111');
+  v_org_b uuid := (select org_id from public.organization_members where user_id = '22222222-2222-2222-2222-222222222222');
+  v_water uuid;
+  v_rooftop uuid;
+  v_a2 uuid;
+begin
+  insert into public.notices (org_id, title, body, audience, publish_at, expires_at, created_by)
+  values (v_org_a, 'Water supply interruption',
+    'Water will be off on Sunday from 10am to 2pm for tank cleaning. Please store water in advance.',
+    'all', now() - interval '1 day', now() + interval '3 days', '11111111-1111-1111-1111-111111111111')
+  returning id into v_water;
+
+  insert into public.notices (org_id, title, body, audience, property_id, publish_at, created_by)
+  values (v_org_a, 'Lift maintenance on Friday',
+    'The lift at Green View Tower will be out of service on Friday between 9am and 1pm.',
+    'property', 'aaaaaaaa-0000-0000-0000-000000000001', now() - interval '2 hours', '11111111-1111-1111-1111-111111111111');
+
+  insert into public.notices (org_id, title, body, audience, publish_at, created_by)
+  values (v_org_a, 'Rooftop access for unit A1',
+    'Your rooftop key is ready. Please collect it from the caretaker.',
+    'units', now() - interval '3 hours', '11111111-1111-1111-1111-111111111111')
+  returning id into v_rooftop;
+  insert into public.notice_units (notice_id, unit_id, org_id)
+  select v_rooftop, id, org_id from public.units
+  where property_id = 'aaaaaaaa-0000-0000-0000-000000000001' and unit_number = 'A1';
+
+  insert into public.notices (org_id, title, body, audience, publish_at, created_by)
+  values (v_org_a, 'Balcony repair for unit A2', 'Workers will repair the A2 balcony railing on Monday.',
+    'units', now() - interval '1 hour', '11111111-1111-1111-1111-111111111111')
+  returning id into v_a2;
+  insert into public.notice_units (notice_id, unit_id, org_id)
+  select v_a2, id, org_id from public.units
+  where property_id = 'aaaaaaaa-0000-0000-0000-000000000001' and unit_number = 'A2';
+
+  insert into public.notices (org_id, title, body, audience, publish_at, expires_at, created_by) values
+    (v_org_a, 'Eid holiday office hours', 'The office is closed during the Eid holidays.',
+      'all', now() - interval '30 days', now() - interval '20 days', '11111111-1111-1111-1111-111111111111'),
+    (v_org_a, 'New parking rules', 'From next week, each flat gets one marked parking space.',
+      'all', now() + interval '5 days', null, '11111111-1111-1111-1111-111111111111');
+
+  insert into public.notices (org_id, title, body, audience, publish_at, created_by)
+  values (v_org_b, 'Gas line inspection', 'Titas Gas will inspect all lines on Thursday.',
+    'all', now() - interval '1 day', '22222222-2222-2222-2222-222222222222');
+
+  insert into public.notice_reads (notice_id, user_id) values (v_water, '33333333-3333-3333-3333-333333333333');
+end;
+$$;

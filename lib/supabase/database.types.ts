@@ -161,6 +161,105 @@ isOneToOne: false
       referencedColumns: ["org_id","id"]
     }
                   ]
+                },"notice_reads": {
+                  Row: {
+                    "notice_id": string,"read_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "notice_id": string,"read_at"?: string,"user_id"?: string
+                  }
+                  Update: {
+                    "notice_id"?: string,"read_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notice_reads_notice_id_fkey"
+      columns: ["notice_id"]
+isOneToOne: false
+      referencedRelation: "my_notices"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notice_reads_notice_id_fkey"
+      columns: ["notice_id"]
+isOneToOne: false
+      referencedRelation: "notice_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notice_reads_notice_id_fkey"
+      columns: ["notice_id"]
+isOneToOne: false
+      referencedRelation: "notices"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"notice_units": {
+                  Row: {
+                    "notice_id": string,"org_id": string,"unit_id": string
+                  }
+                  Insert: {
+                    "notice_id": string,"org_id": string,"unit_id": string
+                  }
+                  Update: {
+                    "notice_id"?: string,"org_id"?: string,"unit_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notice_units_org_id_notice_id_fkey"
+      columns: ["org_id","notice_id"]
+isOneToOne: false
+      referencedRelation: "my_notices"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notice_units_org_id_notice_id_fkey"
+      columns: ["org_id","notice_id"]
+isOneToOne: false
+      referencedRelation: "notice_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notice_units_org_id_notice_id_fkey"
+      columns: ["org_id","notice_id"]
+isOneToOne: false
+      referencedRelation: "notices"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notice_units_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"notices": {
+                  Row: {
+                    "audience": Database["public"]['Enums']["notice_audience"],"body": string,"created_at": string,"created_by": string | null,"expires_at": string | null,"id": string,"org_id": string,"property_id": string | null,"publish_at": string,"title": string,"updated_at": string
+                  }
+                  Insert: {
+                    "audience"?: Database["public"]['Enums']["notice_audience"],"body": string,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string | null,"id"?: string,"org_id": string,"property_id"?: string | null,"publish_at"?: string,"title": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "audience"?: Database["public"]['Enums']["notice_audience"],"body"?: string,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string | null,"id"?: string,"org_id"?: string,"property_id"?: string | null,"publish_at"?: string,"title"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notices_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notices_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "properties"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notices_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "property_overview"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 },"organization_members": {
                   Row: {
                     "created_at": string,"org_id": string,"role": Database["public"]['Enums']["org_member_role"],"user_id": string
@@ -446,6 +545,50 @@ isOneToOne: false
       referencedColumns: ["org_id","id"]
     }
                   ]
+                },"my_notices": {
+                  Row: {
+                    "audience": Database["public"]['Enums']["notice_audience"] | null,"body": string | null,"created_at": string | null,"expires_at": string | null,"id": string | null,"is_read": boolean | null,"org_id": string | null,"publish_at": string | null,"title": string | null
+                  }
+                  Insert: {
+                           "audience"?: Database["public"]['Enums']["notice_audience"] | null,"body"?: string | null,"created_at"?: string | null,"expires_at"?: string | null,"id"?: string | null,"is_read"?: never,"org_id"?: string | null,"publish_at"?: string | null,"title"?: string | null
+                         }
+                        Update: {
+                           "audience"?: Database["public"]['Enums']["notice_audience"] | null,"body"?: string | null,"created_at"?: string | null,"expires_at"?: string | null,"id"?: string | null,"is_read"?: never,"org_id"?: string | null,"publish_at"?: string | null,"title"?: string | null
+                         }
+                        Relationships: [
+                    {
+      foreignKeyName: "notices_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"notice_overview": {
+                  Row: {
+                    "audience": Database["public"]['Enums']["notice_audience"] | null,"body": string | null,"created_at": string | null,"created_by": string | null,"expires_at": string | null,"id": string | null,"org_id": string | null,"property_id": string | null,"property_name": string | null,"publish_at": string | null,"read_count": number | null,"title": string | null,"unit_count": number | null,"updated_at": string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notices_org_id_fkey"
+      columns: ["org_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notices_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "properties"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notices_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "property_overview"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
                 },"payment_overview": {
                   Row: {
                     "amount": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_id": string | null,"created_at": string | null,"id": string | null,"method": Database["public"]['Enums']["payment_method"] | null,"org_id": string | null,"paid_on": string | null,"property_name": string | null,"reference": string | null,"tenant_id": string | null,"tenant_name": string | null,"type_label": string | null,"unit_number": string | null,"void_reason": string | null,"voided_at": string | null
@@ -514,6 +657,9 @@ isOneToOne: false
               "request_id": string,"request_org_id": string
             }[]
                            },
+"create_notice":
+{ Args: { "p_audience": Database["public"]['Enums']["notice_audience"],"p_body": string,"p_expires_at": string,"p_org_id": string,"p_property_id": string,"p_publish_at": string,"p_title": string,"p_unit_ids": (string)[] }; Returns: string
+                           },
 "create_tenant_invite":
 { Args: { "p_tenant_id": string }; Returns: {
               "invite_code": string,"invite_expires_at": string
@@ -529,7 +675,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
+            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","notice_audience": "all"|"property"|"units","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -645,7 +791,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
+            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"notice_audience": ["all", "property", "units"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
           }
         }
 } as const
