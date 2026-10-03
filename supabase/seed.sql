@@ -238,6 +238,13 @@ begin
   returning id into v_lock;
   update public.maintenance_requests set status = 'resolved' where id = v_lock;
 
+  -- Status rows are stamped now() by the trigger; backdate them to fit the story.
+  update public.maintenance_updates set created_at = now() - interval '4 days'
+  where request_id = v_ac and status_to is not null;
+  update public.maintenance_updates set created_at = now() - interval '18 days'
+  where request_id = v_lock and status_to is not null;
+  update public.maintenance_requests set resolved_at = now() - interval '18 days' where id = v_lock;
+
   insert into public.maintenance_requests (org_id, unit_id, tenancy_id, category, title, description, created_at)
   select tc.org_id, tc.unit_id, tc.id, 'internet', 'No internet since yesterday', '', now() - interval '1 day'
   from public.tenancies tc
