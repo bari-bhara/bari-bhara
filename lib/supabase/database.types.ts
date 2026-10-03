@@ -668,10 +668,16 @@ isOneToOne: false
 "generate_monthly_rent":
 { Args: { "p_month": string,"p_property_id"?: string }; Returns: number
                            },
+"landlord_dashboard":
+{ Args: { "p_org_id": string }; Returns: Json
+                           },
 "my_tenancies":
 { Args: Record<PropertyKey, never>; Returns: {
               "bedrooms": number,"currency": string,"floor": string,"monthly_rent": number,"move_in_date": string,"move_out_date": string,"organization_name": string,"property_address": string,"property_city": string,"property_name": string,"rent_due_day": number,"security_deposit": number,"status": Database["public"]['Enums']["tenancy_status"],"tenancy_id": string,"timezone": string,"unit_id": string,"unit_number": string,"unit_type": string
             }[]
+                           },
+"tenant_dashboard":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            }
           }
           Enums: {
