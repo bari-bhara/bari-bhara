@@ -12,3 +12,5 @@ export const DB_CHARGE_VOID = "BB006";
 export const DB_CHARGE_HAS_PAYMENTS = "BB007";
 export const DB_OVERPAYMENT = "BB008";
 export const DB_PAYMENT_ALREADY_VOID = "BB009";
+export const DB_TOO_MANY_PHOTOS = "BB010";
+export const DB_PHOTO_PATH_INVALID = "BB011";

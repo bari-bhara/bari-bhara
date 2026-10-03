@@ -10,6 +10,8 @@ export type TenancyStatus = Enums["tenancy_status"];
 export type ChargeCategory = Enums["charge_category"];
 export type ChargeStatus = Enums["charge_status"];
 export type PaymentMethod = Enums["payment_method"];
+export type MaintenanceCategory = Enums["maintenance_category"];
+export type MaintenanceStatus = Enums["maintenance_status"];
 /** A charge's stored status, or "overdue" (derived in charge_balances; ADR 0004). */
 export type EffectiveStatus = ChargeStatus | "overdue";
 
@@ -55,6 +57,13 @@ export type ChargeOverview = Omit<
   "effective_status"
 > & { effective_status: EffectiveStatus };
 export type PaymentOverview = Required<Views["payment_overview"]["Row"], "voided_at">;
+
+export type MaintenanceRequest = Tables["maintenance_requests"]["Row"];
+export type MaintenanceUpdate = Tables["maintenance_updates"]["Row"];
+export type MaintenanceOverview = Required<
+  Views["maintenance_overview"]["Row"],
+  "tenancy_id" | "tenant_id" | "created_by" | "resolved_at" | "tenant_name"
+>;
 
 /** The narrow view of the signed-in user that server code passes around. */
 export type SessionUser = {

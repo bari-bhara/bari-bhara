@@ -19,7 +19,7 @@ import {
   DB_OVERPAYMENT,
   DB_PAYMENT_ALREADY_VOID,
 } from "@/lib/postgres-errors";
-import type { TablesInsert } from "@/lib/supabase/database.types";
+import { filledByTrigger } from "@/lib/supabase/insert";
 import { createClient } from "@/lib/supabase/server";
 import { id as idSchema } from "@/lib/zod-fields";
 import {
@@ -90,17 +90,18 @@ export async function createBill(input: BillFormValues): Promise<ActionResult> {
   }
   if (!tenancy) return fieldError("tenancyId", "This tenancy no longer exists.");
 
-  // unit_id and category are filled by the charges_prepare trigger (and aren't
-  // insertable by users), so they're omitted despite the generated type.
-  const row = {
-    org_id: tenancy.org_id,
-    tenancy_id: bill.tenancyId,
-    charge_type_id: bill.chargeTypeId,
-    billing_month: `${bill.billingMonth}-01`,
-    amount: bill.amount,
-    due_date: bill.dueDate,
-    description: bill.description,
-  } as TablesInsert<"charges">;
+  const row = filledByTrigger<"charges", "unit_id" | "category">(
+    {
+      org_id: tenancy.org_id,
+      tenancy_id: bill.tenancyId,
+      charge_type_id: bill.chargeTypeId,
+      billing_month: `${bill.billingMonth}-01`,
+      amount: bill.amount,
+      due_date: bill.dueDate,
+      description: bill.description,
+    },
+    ["unit_id", "category"],
+  );
   const { data, error } = await supabase.from("charges").insert(row).select("id").single();
 
   if (error) {
