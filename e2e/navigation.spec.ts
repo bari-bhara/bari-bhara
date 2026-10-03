@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PROPERTIES, USERS, login } from "./helpers";
+import { PROPERTIES, TENANTS, USERS, login } from "./helpers";
 
 test("landlord can reach every section from the navigation", async ({ page, isMobile }) => {
   await login(page, USERS.landlordA.email);
@@ -36,6 +36,9 @@ test("pages don't overflow horizontally", async ({ page }) => {
     `/properties/${PROPERTIES.landlordA.id}`,
     "/units",
     "/units/new",
+    "/tenants?status=all",
+    `/tenants/${TENANTS.sumaiya.id}`,
+    "/tenants/new",
   ];
   for (const path of paths) {
     await page.goto(path);

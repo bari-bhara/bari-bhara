@@ -123,7 +123,8 @@ test.describe("signup", () => {
     await expect(page.getByText("Test Towers")).toBeVisible();
   });
 
-  test("tenant signup lands on the tenant dashboard", async ({ page }) => {
+  // A new tenant has no linked home yet, so the portal sends them to /tenant/join.
+  test("tenant signup lands on the join page", async ({ page }) => {
     await page.goto("/signup");
     await page.getByRole("radio", { name: /I'm a tenant/ }).click();
     await expect(page.getByLabel(/Business or portfolio name/)).toHaveCount(0);
@@ -132,8 +133,8 @@ test.describe("signup", () => {
     await page.getByLabel("Password", { exact: true }).fill(SEED_PASSWORD);
     await page.getByLabel("Confirm password").fill(SEED_PASSWORD);
     await page.getByRole("button", { name: "Create account" }).click();
-    await expect(page).toHaveURL("/tenant/dashboard");
-    await expect(page.getByText("Connect to your home")).toBeVisible();
+    await expect(page).toHaveURL("/tenant/join");
+    await expect(page.getByRole("heading", { level: 1, name: "Connect to your home" })).toBeVisible();
   });
 
   test("mismatched passwords are rejected", async ({ page }) => {
