@@ -58,7 +58,7 @@ export default async function TenantDashboardPage() {
         title={firstName ? `Hi, ${firstName}` : "Hi there"}
         description={current.length > 0 ? "Your home at a glance." : "You don't have a current home with us."}
       />
-      <div className="grid gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <section aria-label="Balance" className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <Card>
             <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">
