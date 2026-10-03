@@ -109,7 +109,8 @@ async function expectNoOverflow(page: Page, paths: string[], widths: number[]) {
 const widthsFor = (isMobile: boolean) => (isMobile ? [360, 390] : [768, 1024, 1440]);
 
 test.describe("pages don't overflow horizontally", () => {
-  test.slow();
+  // ~25 pages at two or three widths.
+  test.describe.configure({ timeout: 300_000 });
 
   test("landlord pages", async ({ page, isMobile }) => {
     await login(page, USERS.landlordA.email);

@@ -63,7 +63,8 @@ async function expectNoViolations(page: Page, paths: string[]) {
 // by the desktop sidebar and the mobile tests' bottom bar elsewhere.
 test.describe("accessibility", () => {
   test.skip(({ isMobile }) => isMobile, "Runs on the desktop project only.");
-  test.slow();
+  // Every page twice (light and dark).
+  test.describe.configure({ timeout: 240_000 });
 
   test("public pages", async ({ page }) => {
     await expectNoViolations(page, PUBLIC_PAGES);
