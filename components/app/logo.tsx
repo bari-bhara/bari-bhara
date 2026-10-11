@@ -1,13 +1,22 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** The orbit mark: a ring with a lime body in orbit. Decorative; the wordmark names the link. */
+/** The house mark: a line-drawn home with a lit (lime) window. Decorative; the wordmark names the link. */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={cn("h-8 w-8", className)} aria-hidden>
-      <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" strokeOpacity="0.55" strokeWidth="1.5" />
-      <circle cx="16" cy="16" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="24.6" cy="9.2" r="3" className="fill-brand" />
+    <svg
+      viewBox="0 0 32 32"
+      className={cn("h-8 w-8", className)}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 15.5 16 5l12 10.5" />
+      <path d="M7.5 13v13.5h17V13" />
+      <rect x="13" y="15" width="6" height="6" rx="1.25" strokeWidth="1.25" className="fill-brand" />
     </svg>
   );
 }
