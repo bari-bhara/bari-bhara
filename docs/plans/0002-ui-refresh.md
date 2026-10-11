@@ -6,13 +6,13 @@
 - **Builds on:** [0001](0001-initial-architecture-and-roadmap.md) (Phase 9 a11y and layout guarantees stay in force)
 
 ### Progress
-- [ ] 1. Docs (this plan, ADR 0008)
-- [ ] 2. Tokens, type and primitives
-- [ ] 3. Shared app components and shell
-- [ ] 4. Feature badges and hard-coded colours
-- [ ] 5. Landing, auth and status pages
-- [ ] 6. Dashboards
-- [ ] 7. Verification
+- [x] 1. Docs (this plan, ADR 0008)
+- [x] 2. Tokens, type and primitives
+- [x] 3. Shared app components and shell
+- [x] 4. Feature badges and hard-coded colours
+- [x] 5. Landing, auth and status pages
+- [x] 6. Dashboards
+- [x] 7. Verification
 
 > Living document: tick boxes as work lands, record changes under "Changelog".
 
@@ -91,3 +91,11 @@ Status tones: success (leaf green), warning (amber), info (sky), highlight (viol
 
 ## Changelog
 - 2026-10-11: Initial version.
+- 2026-10-11: Done (branch `feature/ui-refresh`). Decisions made during implementation:
+  - New shared components: `StatusBadge` (tones), `HeroPanel`, `OrbitGauge`, `OrbitBackdrop` and `IconRing` in `components/app/`, plus the `.surface` / `.surface-interactive` classes. The five feature badges are now tone maps with no colours of their own, and no raw palette classes remain in `app/`, `components/` or `features/`.
+  - `CardTitle` uses the display cut by default, so every card heading picks up the new type without per-page changes.
+  - The hero panels, the sidebar, the phone tab bar, the landing hero and the sign-in side panel use a `.dark` token scope, so they are moss in both themes. Radix portals (sheets, menus, dialogs) still follow the page theme.
+  - The orbit gauge's text is drawn inside the SVG so it scales on phones. Its caption was dropped from the dashboard because it repeated the hint and was too small to read on a phone.
+  - The theme still follows the OS (`system`). Defaulting to dark would match the reference more literally, but it would ignore user preference and change what the light-mode axe scans test.
+  - Token contrast was checked numerically for every text/surface pair (all ≥ 4.5:1), then by the axe scans.
+  - Verified: `pnpm lint`, `pnpm typecheck` and `pnpm build` pass. E2E: 116 passed, 4 skipped, 2 failed. All axe scans (light and dark) and the 360/768px overflow checks pass. The 2 failures are the same rent test on mobile and desktop. It expects a new charge to be "Unpaid", but with the default due day (the 5th) it is "Overdue" after the 5th of the month, so it is date-dependent and unrelated to this change. It was left for a separate fix.
