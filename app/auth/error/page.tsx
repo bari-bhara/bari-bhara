@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Link problem" };
 
 export default function AuthErrorPage() {
   return (
-    <main className="flex min-h-svh flex-col items-center bg-muted/40 px-4 py-10 sm:justify-center">
+    <main className="flex min-h-svh flex-col items-center bg-canvas px-4 py-10 sm:justify-center">
       <Logo className="mb-8 text-lg" />
       <div className="w-full max-w-md">
         <AuthCard title="This link didn't work">

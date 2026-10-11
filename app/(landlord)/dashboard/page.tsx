@@ -1,7 +1,9 @@
-import { AlertTriangle, Building2, CircleCheck, DoorOpen, UserPlus, Wrench } from "lucide-react";
+import { AlertTriangle, Building2, DoorOpen, UserPlus, Wrench } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/app/empty-state";
+import { HeroPanel } from "@/components/app/hero-panel";
+import { OrbitGauge } from "@/components/app/orbit-gauge";
 import { PageHeader } from "@/components/app/page-header";
 import { StatCard } from "@/components/app/stat-card";
 import { Button } from "@/components/ui/button";
@@ -30,9 +32,12 @@ function ListCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <Link href={href} className="text-sm text-muted-foreground hover:text-foreground">
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle>{title}</CardTitle>
+        <Link
+          href={href}
+          className="-mr-2 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
           {linkLabel}
         </Link>
       </CardHeader>
@@ -78,8 +83,11 @@ export default async function DashboardPage() {
   return (
     <>
       {header}
-      <section aria-label="This month at a glance" className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
+      <section
+        aria-label="This month at a glance"
+        className="mb-8 grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]"
+      >
+        <HeroPanel
           label={`Collected in ${formatMonth(data.month).split(" ")[0]}`}
           value={formatMoney(data.month_collected, currency)}
           hint={
@@ -87,30 +95,42 @@ export default async function DashboardPage() {
               ? "No charges billed yet"
               : `${percent}% of ${formatMoney(data.month_billed, currency)} billed`
           }
-          icon={CircleCheck}
-        />
-        <StatCard
-          label="Outstanding"
-          value={formatMoney(data.outstanding, currency)}
-          hint={
-            data.overdue.count > 0
-              ? `${formatMoney(data.overdue.amount, currency)} overdue`
-              : "Nothing overdue"
+          visual={
+            <OrbitGauge
+              value={percent}
+              label={
+                percent === null
+                  ? "No rent billed this month yet"
+                  : `${percent}% of this month's billed rent and bills collected`
+              }
+            />
           }
-          icon={AlertTriangle}
         />
-        <StatCard
-          label="Occupancy"
-          value={`${occupancy}%`}
-          hint={`${data.units.occupied} of ${data.units.total} units · ${data.units.vacant} vacant`}
-          icon={DoorOpen}
-        />
-        <StatCard
-          label="Open maintenance"
-          value={data.maintenance.open}
-          hint={`${data.maintenance.pending} waiting for you`}
-          icon={Wrench}
-        />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-1">
+          <StatCard
+            label="Outstanding"
+            value={formatMoney(data.outstanding, currency)}
+            hint={
+              data.overdue.count > 0
+                ? `${formatMoney(data.overdue.amount, currency)} overdue`
+                : "Nothing overdue"
+            }
+            icon={AlertTriangle}
+          />
+          <StatCard
+            label="Occupancy"
+            value={`${occupancy}%`}
+            hint={`${data.units.occupied} of ${data.units.total} units · ${data.units.vacant} vacant`}
+            icon={DoorOpen}
+          />
+          <StatCard
+            label="Open maintenance"
+            value={data.maintenance.open}
+            hint={`${data.maintenance.pending} waiting for you`}
+            icon={Wrench}
+            className="col-span-2 sm:col-span-1"
+          />
+        </div>
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
