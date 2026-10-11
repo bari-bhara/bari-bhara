@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </main>
       <aside
         className="dark relative isolate m-3 hidden overflow-hidden rounded-[2rem] border bg-background p-10 text-foreground lg:flex lg:flex-col lg:justify-between"
-        aria-label="About Bari_bhara"
+        aria-label="About Bari Bhara"
       >
         <OrbitBackdrop className="-bottom-72 -right-72 -z-10 w-[52rem]" />
         <Logo />

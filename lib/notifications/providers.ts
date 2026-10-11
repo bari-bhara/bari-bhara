@@ -95,7 +95,7 @@ export function providerFor(channel: NotificationChannel): NotificationProvider 
       return resendProvider(process.env.RESEND_API_KEY, process.env.EMAIL_FROM);
     }
     if (process.env.MAILPIT_URL) {
-      return mailpitProvider(process.env.MAILPIT_URL, process.env.EMAIL_FROM || "Bari_bhara <noreply@baribhara.local>");
+      return mailpitProvider(process.env.MAILPIT_URL, process.env.EMAIL_FROM || "Bari Bhara <noreply@baribhara.local>");
     }
     return unconfiguredEmail("Email isn't configured (set RESEND_API_KEY, or MAILPIT_URL in development).");
   }

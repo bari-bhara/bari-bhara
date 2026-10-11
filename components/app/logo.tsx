@@ -16,7 +16,7 @@ export function Logo({ href = "/", className }: { href?: string; className?: str
   return (
     <Link href={href} className={cn("inline-flex items-center gap-2.5", className)}>
       <LogoMark />
-      <span className="font-display text-[15px] font-medium tracking-tight">Bari_bhara</span>
+      <span className="font-display text-[15px] font-medium tracking-tight">Bari Bhara</span>
     </Link>
   );
 }

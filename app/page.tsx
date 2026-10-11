@@ -57,7 +57,7 @@ export default function HomePage() {
                 Every flat, every payment, in order.
               </h1>
               <p className="mt-6 max-w-lg text-pretty text-base text-muted-foreground sm:text-lg">
-                Bari_bhara helps landlords manage flats, tenants, rent, bills and maintenance, and gives
+                Bari Bhara helps landlords manage flats, tenants, rent, bills and maintenance, and gives
                 tenants one place to see what they owe.
               </p>
               <div className="mt-10 flex flex-col gap-3 sm:flex-row">
@@ -104,7 +104,7 @@ export default function HomePage() {
         </ul>
       </section>
 
-      <footer className="mt-auto border-t py-6 text-center text-xs text-muted-foreground">© Bari_bhara</footer>
+      <footer className="mt-auto border-t py-6 text-center text-xs text-muted-foreground">© Bari Bhara</footer>
     </div>
   );
 }

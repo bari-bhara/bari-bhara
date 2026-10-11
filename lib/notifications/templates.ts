@@ -58,7 +58,7 @@ export function paymentReminder({
         `<li>${escapeHtml(c.typeLabel)}, ${escapeHtml(formatMonth(c.billingMonth))}: <strong>${escapeHtml(formatMoney(c.outstanding, currency))}</strong> (due ${escapeHtml(formatDay(c.dueDate))}${c.overdue ? ", overdue" : ""})</li>`,
     )
     .join("")}</ul>
-<p><a href="${escapeHtml(link)}">See the details in Bari_bhara</a></p>
+<p><a href="${escapeHtml(link)}">See the details in Bari Bhara</a></p>
 <p style="color:#666">If you've already paid, please ignore this message.</p>`;
 
   return { subject, text, html };

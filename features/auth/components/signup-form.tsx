@@ -71,7 +71,7 @@ export function SignupForm() {
           name="role"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>How will you use Bari_bhara?</FormLabel>
+              <FormLabel>How will you use Bari Bhara?</FormLabel>
               <FormControl>
                 <RadioGroup
                   value={field.value}

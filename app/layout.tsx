@@ -13,8 +13,8 @@ const defaultUrl = process.env.NEXT_PUBLIC_SITE_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: {
-    default: "Bari_bhara — Rental & property management",
-    template: "%s · Bari_bhara",
+    default: "Bari Bhara — Rental & property management",
+    template: "%s · Bari Bhara",
   },
   description:
     "Manage properties, flats, tenants, rent, utility bills, maintenance and notices in one place.",

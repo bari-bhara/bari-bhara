@@ -1,4 +1,4 @@
-# Bari_bhara
+# Bari Bhara
 
 Rental and property management for landlords and tenants: properties, flats, tenants, rent, utility bills, payments, maintenance and notices.
 
