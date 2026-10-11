@@ -1,6 +1,6 @@
-# Bari_bhara Documentation
+# Bari Bhara Documentation
 
-This folder is the single source of truth for how Bari_bhara is planned, designed and built. Humans and AI agents read it before making changes, and update it when changes affect what it describes.
+This folder is the single source of truth for how Bari Bhara is planned, designed and built. Humans and AI agents read it before making changes, and update it when changes affect what it describes.
 
 ## Layout
 
