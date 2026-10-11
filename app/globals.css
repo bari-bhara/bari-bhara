@@ -87,10 +87,6 @@
   * {
     @apply border-border;
   }
-  html {
-    /* Archivo's wide cut is used for display text; body text stays at normal width. */
-    font-feature-settings: "ss01", "cv11";
-  }
   body {
     @apply bg-canvas text-foreground;
   }
