@@ -48,19 +48,11 @@ export default function Image() {
         />
 
         <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 32 }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 40,
-              border: `3px solid ${INK}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <div style={{ width: 14, height: 14, borderRadius: 14, background: LIME }} />
-          </div>
+          <svg width="44" height="44" viewBox="0 0 32 32">
+            <path d="M4 15.5 16 5l12 10.5" fill="none" stroke={INK} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M7.5 13v13.5h17V13" fill="none" stroke={INK} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="13" y="15" width="6" height="6" rx="1.25" fill={LIME} />
+          </svg>
           Bari Bhara
         </div>
 
