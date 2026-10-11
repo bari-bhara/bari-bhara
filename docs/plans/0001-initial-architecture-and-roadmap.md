@@ -1,4 +1,4 @@
-# 0001 — Bari_bhara: Assessment, Architecture & Build Plan
+# 0001 — Bari Bhara: Assessment, Architecture & Build Plan
 
 - **Status:** Accepted
 - **Date:** 2026-10-03
@@ -21,7 +21,7 @@
 > This is a living document. When a phase lands, tick its box. When the plan changes, edit the plan and record the reason under "Changelog" at the bottom. Significant architectural changes also need a new ADR.
 
 ## Context
-Bari_bhara is a rental and property management SaaS for landlords and tenants: properties, units, tenancies, rent and utility charges, payments, maintenance, notices and reminders. It runs on Next.js + Supabase and deploys to Vercel. The repo is a fresh **Supabase Next.js starter**, so this plan covers the full architecture and a phased roadmap, then details Phase 1, which is implemented first.
+Bari Bhara is a rental and property management SaaS for landlords and tenants: properties, units, tenancies, rent and utility charges, payments, maintenance, notices and reminders. It runs on Next.js + Supabase and deploys to Vercel. The repo is a fresh **Supabase Next.js starter**, so this plan covers the full architecture and a phased roadmap, then details Phase 1, which is implemented first.
 
 Decisions the user made:
 - **Tenant onboarding:** the tenant signs up, then enters an invite code the landlord generated, which links their login to the tenant record. No service-role key is needed.

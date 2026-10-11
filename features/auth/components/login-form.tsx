@@ -79,7 +79,7 @@ export function LoginForm() {
           {form.formState.isSubmitting ? "Logging in…" : "Log in"}
         </Button>
         <p className="text-center text-sm text-muted-foreground">
-          New to Bari_bhara?{" "}
+          New to Bari Bhara?{" "}
           <Link href="/signup" className="font-medium text-foreground underline underline-offset-4">
             Create an account
           </Link>

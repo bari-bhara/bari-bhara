@@ -1,6 +1,6 @@
-# Bari_bhara Documentation
+# Bari Bhara Documentation
 
-This folder is the single source of truth for how Bari_bhara is planned, designed and built. Humans and AI agents read it before making changes, and update it when changes affect what it describes.
+This folder is the single source of truth for how Bari Bhara is planned, designed and built. Humans and AI agents read it before making changes, and update it when changes affect what it describes.
 
 ## Layout
 
@@ -15,6 +15,7 @@ This folder is the single source of truth for how Bari_bhara is planned, designe
 
 ### Plans
 - [0001 — Initial architecture & roadmap](plans/0001-initial-architecture-and-roadmap.md) (Accepted)
+- [0002 — UI refresh: modern, friendlier, token-driven](plans/0002-ui-refresh.md) (Accepted)
 
 ### Architecture Decision Records
 - [0001 — Supabase as the only backend](adr/0001-supabase-as-backend.md) (Accepted)
@@ -24,6 +25,7 @@ This folder is the single source of truth for how Bari_bhara is planned, designe
 - [0005 — Notification provider interface, in-app + Resend](adr/0005-notifications-provider-interface-resend.md) (Accepted)
 - [0006 — Local Supabase CLI workflow](adr/0006-local-supabase-cli-workflow.md) (Accepted)
 - [0007 — Tenants read their data through column-safe functions](adr/0007-tenant-reads-through-safe-functions.md) (Accepted)
+- [0008 — Token-driven "moss & lime" visual language](adr/0008-design-tokens-and-visual-language.md) (Accepted)
 
 ### Architecture reference
 - [Database](architecture/database.md)

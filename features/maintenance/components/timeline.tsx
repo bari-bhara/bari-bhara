@@ -29,8 +29,8 @@ export function Timeline({
           <li
             key={update.id}
             className={cn(
-              "rounded-lg border p-3",
-              update.is_internal && "border-dashed border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/30",
+              "rounded-xl border bg-card p-3.5",
+              update.is_internal && "border-dashed border-warning/40 bg-warning/[0.06]",
             )}
           >
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -45,7 +45,7 @@ export function Timeline({
               </p>
             )}
             {update.is_internal && (
-              <p className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+              <p className="mt-1 flex items-center gap-1 text-xs font-medium text-warning">
                 <Lock className="h-3 w-3" aria-hidden /> Internal note: hidden from the tenant
               </p>
             )}

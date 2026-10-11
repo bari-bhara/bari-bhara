@@ -30,7 +30,7 @@ export default async function TenantNoticesPage({ searchParams }: { searchParams
                 <Link
                   href={`/tenant/notices/${notice.id}`}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg border bg-background p-4 transition-colors hover:bg-accent/50",
+                    "flex items-center gap-3 surface-interactive p-4",
                     !notice.is_read && "border-primary/40",
                   )}
                 >

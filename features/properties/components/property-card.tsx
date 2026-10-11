@@ -7,17 +7,17 @@ export function PropertyCard({ property }: { property: PropertyOverview }) {
   const location = [property.address, property.city].filter(Boolean).join(", ");
 
   return (
-    <Card className="relative transition-colors hover:bg-accent/50">
+    <Card className="relative transition-colors hover:border-foreground/20 hover:bg-accent/50">
       <div className="flex items-start gap-3 p-4 sm:p-5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-muted-foreground">
           <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate font-semibold">
+          <h2 className="truncate font-display text-lg font-normal">
             {/* Stretched link: the whole card is clickable (and ringed on focus), with one accessible name. */}
             <Link
               href={`/properties/${property.id}`}
-              className="after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+              className="after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
             >
               {property.name}
             </Link>
@@ -43,7 +43,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="py-3 [&:not(:first-child)]:border-l">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+      <dd className="font-display text-lg tabular-nums">{value}</dd>
     </div>
   );
 }

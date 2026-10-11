@@ -4,7 +4,7 @@
 - **Last reviewed:** 2026-10-03 (Phase 10, against migrations up to `20261003120000_notifications.sql`)
 - **Related:** [ADR 0003](../adr/0003-org-based-multi-tenancy-and-rls.md) (multi-tenancy and RLS) · [ADR 0007](../adr/0007-tenant-reads-through-safe-functions.md) (tenant reads) · [database.md](database.md) · [deployment runbook](../runbooks/deployment.md)
 
-This page covers how Bari_bhara keeps each landlord's data private, and what the 2026-10-03 review checked. Re-run the checks in [How to re-check](#how-to-re-check) after any migration that adds a table, view or function.
+This page covers how Bari Bhara keeps each landlord's data private, and what the 2026-10-03 review checked. Re-run the checks in [How to re-check](#how-to-re-check) after any migration that adds a table, view or function.
 
 ## Model
 

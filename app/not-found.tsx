@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Page not found" };
 /** Unmatched URLs, and notFound() outside the app shells. */
 export default function NotFound() {
   return (
-    <div className="flex min-h-svh flex-col bg-muted/30">
+    <div className="flex min-h-svh flex-col bg-canvas">
       <header className="flex h-16 items-center border-b bg-background px-4 sm:px-6">
         <Logo />
       </header>

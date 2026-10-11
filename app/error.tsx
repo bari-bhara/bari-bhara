@@ -13,7 +13,7 @@ export default function RootError({
   retry: () => void;
 }) {
   return (
-    <main id="main" className="min-h-svh bg-muted/30">
+    <main id="main" className="min-h-svh bg-canvas">
       <ErrorMessage error={error} retry={retry}>
         <Button asChild variant="outline">
           <Link href="/">Go to home</Link>

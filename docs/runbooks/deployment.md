@@ -4,7 +4,7 @@
 - **Date:** 2026-10-03
 - **Related:** [Plan 0001, Phase 10](../plans/0001-initial-architecture-and-roadmap.md) · [ADR 0005](../adr/0005-notifications-provider-interface-resend.md) (email) · [ADR 0006](../adr/0006-local-supabase-cli-workflow.md) (migrations) · [Security](../architecture/security.md)
 
-Bari_bhara runs on:
+Bari Bhara runs on:
 
 | Piece | Service | Configured in |
 |---|---|---|
@@ -39,7 +39,7 @@ Dashboard paths are as of 2026; names may shift slightly.
 - [ ] **Authentication → Hooks → Customize Access Token (JWT) Claims:** enable it, type *Postgres*, schema `private`, function `custom_access_token_hook`. The migration already grants it to `supabase_auth_admin`. Without it, sign-in still works, but the proxy can't redirect by role.
 - [ ] **Authentication → SMTP Settings:** enable custom SMTP.
   - Host `smtp.resend.com`, port `465`, username `resend`, password = the Auth SMTP key from step 1.
-  - Sender: an address on the verified domain (e.g. `no-reply@…`), name "Bari_bhara".
+  - Sender: an address on the verified domain (e.g. `no-reply@…`), name "Bari Bhara".
 - [ ] **Authentication → Rate Limits:** once custom SMTP is on, raise "emails sent per hour" from the built-in-SMTP default to suit expected signups.
 - [ ] **Project Settings → API:** exposed schemas stay `public` and `graphql_public` (the default). Never expose `private`.
 - [ ] Note the **project ref**, **database password**, **project URL** and **publishable key** for the next steps.
@@ -63,7 +63,7 @@ Dashboard paths are as of 2026; names may shift slightly.
   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key |
   | `NEXT_PUBLIC_SITE_URL` | `https://<production domain>`, used in auth email links |
   | `RESEND_API_KEY` | The reminders key from step 1 |
-  | `EMAIL_FROM` | e.g. `Bari_bhara <reminders@baribhara.example.com>`, on the verified domain. Required with `RESEND_API_KEY`. |
+  | `EMAIL_FROM` | e.g. `Bari Bhara <reminders@baribhara.example.com>`, on the verified domain. Required with `RESEND_API_KEY`. |
 
   - Never set `MAILPIT_URL` here; it's for local development only.
   - **Never** add a Supabase service-role or secret key: the app doesn't use one.

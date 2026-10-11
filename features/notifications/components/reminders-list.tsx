@@ -1,12 +1,13 @@
 import { formatDateTime } from "@/lib/format";
+import { TONE_TEXT } from "@/components/app/status-badge";
 import { cn } from "@/lib/utils";
 import { CHANNEL_LABELS } from "../labels";
 import type { ReminderRow } from "../queries";
 
 const STATUS_STYLES = {
-  sent: "text-emerald-700 dark:text-emerald-400",
-  failed: "text-destructive",
-  pending: "text-muted-foreground",
+  sent: TONE_TEXT.success,
+  failed: TONE_TEXT.danger,
+  pending: TONE_TEXT.neutral,
 } as const;
 
 /** Reminder deliveries with their outcome. */

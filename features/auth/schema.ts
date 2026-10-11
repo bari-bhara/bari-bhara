@@ -16,7 +16,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const signupSchema = z
   .object({
-    role: z.enum(["landlord", "tenant"], "Choose how you'll use Bari_bhara."),
+    role: z.enum(["landlord", "tenant"], "Choose how you'll use Bari Bhara."),
     fullName: z
       .string()
       .trim()

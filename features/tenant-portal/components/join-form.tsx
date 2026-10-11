@@ -55,7 +55,7 @@ export function JoinForm() {
                   {...field}
                 />
               </FormControl>
-              <FormDescription>Your landlord can create one for you in Bari_bhara.</FormDescription>
+              <FormDescription>Your landlord can create one for you in Bari Bhara.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
