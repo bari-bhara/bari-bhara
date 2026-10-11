@@ -48,7 +48,7 @@ export default async function TenantMaintenancePage({
               <li key={request.id}>
                 <Link
                   href={`/tenant/maintenance/${request.id}`}
-                  className="flex items-center gap-3 rounded-lg border bg-background p-4 transition-colors hover:bg-accent/50"
+                  className="flex items-center gap-3 surface-interactive p-4"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">

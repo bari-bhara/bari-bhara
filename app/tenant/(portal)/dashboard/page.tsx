@@ -31,7 +31,7 @@ function CountLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 rounded-lg border bg-background p-4 text-sm hover:bg-accent/50",
+        "flex items-center gap-3 surface-interactive p-4 text-sm",
         count > 0 && "border-primary/40 font-medium",
       )}
     >

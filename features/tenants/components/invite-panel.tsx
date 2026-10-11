@@ -42,7 +42,7 @@ export function InvitePanel({
   if (hasLogin) {
     return (
       <p className="flex items-start gap-2 text-sm">
-        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+        <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
         <span>
           <span className="font-medium">Connected.</span> {tenantName} can sign in and see their
           home.

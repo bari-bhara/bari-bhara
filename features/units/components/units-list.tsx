@@ -39,7 +39,7 @@ export function UnitsList({
           <li key={unit.id}>
             <Link
               href={`/units/${unit.id}`}
-              className="flex items-center gap-3 rounded-lg border bg-background p-4 transition-colors hover:bg-accent/50"
+              className="flex items-center gap-3 surface-interactive p-4"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -60,7 +60,7 @@ export function UnitsList({
         ))}
       </ul>
 
-      <div className="hidden rounded-lg border bg-background md:block">
+      <div className="hidden overflow-hidden surface md:block">
         <Table>
           <TableHeader>
             <TableRow>
