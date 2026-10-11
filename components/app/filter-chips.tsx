@@ -25,10 +25,10 @@ export function FilterChips({ label, chips }: { label: string; chips: FilterChip
               scroll={false}
               aria-current={chip.active ? "page" : undefined}
               className={cn(
-                "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm transition-colors",
+                "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm transition-colors",
                 chip.active
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-background hover:bg-accent",
+                  : "bg-card hover:border-foreground/25 hover:bg-accent",
               )}
             >
               {chip.label}

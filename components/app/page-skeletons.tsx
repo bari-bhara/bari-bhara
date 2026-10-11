@@ -7,10 +7,10 @@ export function PageSkeleton() {
       <HeaderSkeleton />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-24" />
+          <Skeleton key={i} className="h-28 rounded-2xl" />
         ))}
       </div>
-      <Skeleton className="h-64" />
+      <Skeleton className="h-64 rounded-2xl" />
     </div>
   );
 }
@@ -27,7 +27,7 @@ export function ListSkeleton() {
       </div>
       <div className="grid gap-2">
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-16" />
+          <Skeleton key={i} className="h-16 rounded-2xl" />
         ))}
       </div>
     </div>
@@ -37,7 +37,7 @@ export function ListSkeleton() {
 function HeaderSkeleton() {
   return (
     <div className="grid gap-2">
-      <Skeleton className="h-7 w-48" />
+      <Skeleton className="h-9 w-56" />
       <Skeleton className="h-4 w-72 max-w-full" />
     </div>
   );

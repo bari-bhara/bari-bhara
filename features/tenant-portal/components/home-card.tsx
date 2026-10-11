@@ -16,7 +16,7 @@ export function HomeCard({ tenancy }: { tenancy: MyTenancy }) {
   return (
     <Card>
       <CardHeader className="flex-row items-start gap-3 space-y-0">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-muted-foreground">
           <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden />
         </span>
         <div className="grid min-w-0 flex-1 gap-1">

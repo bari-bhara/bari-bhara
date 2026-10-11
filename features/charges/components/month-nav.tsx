@@ -24,7 +24,7 @@ export function MonthNav({
           <ChevronLeft aria-hidden />
         </Link>
       </Button>
-      <h2 className="min-w-36 text-center text-lg font-semibold" aria-live="polite">
+      <h2 className="min-w-36 text-center font-display text-lg font-normal" aria-live="polite">
         {formatMonth(month)}
       </h2>
       <Button asChild variant="outline" size="icon" className="h-10 w-10">

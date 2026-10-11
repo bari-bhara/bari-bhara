@@ -42,11 +42,12 @@ export function MobileNavBar({
   );
 
   return (
+    // Floats above the safe area as a dark bar in both themes (a `.dark` token scope).
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      className="dark fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-40 rounded-[1.75rem] border bg-background/90 text-foreground shadow-2xl shadow-black/30 backdrop-blur-xl md:hidden"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-5 px-1">
         {primary.map((item) => {
           const active = isNavItemActive(item, pathname);
           const badge = badges?.[item.href] ?? 0;
@@ -60,10 +61,15 @@ export function MobileNavBar({
                   active && "text-foreground",
                 )}
               >
-                <span className="relative">
-                  <item.icon className="h-5 w-5" aria-hidden />
+                <span
+                  className={cn(
+                    "relative flex h-7 w-12 items-center justify-center rounded-full transition-colors",
+                    active && "bg-brand text-brand-foreground",
+                  )}
+                >
+                  <item.icon className="h-[18px] w-[18px]" aria-hidden />
                   {badge > 0 && (
-                    <span className="absolute -right-2.5 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-semibold leading-4 text-primary-foreground">
+                    <span className="absolute -top-1 right-0.5 min-w-4 rounded-full bg-foreground px-1 text-center text-[10px] font-semibold leading-4 text-background">
                       {badge}
                     </span>
                   )}
@@ -84,10 +90,17 @@ export function MobileNavBar({
                 moreActive && "text-foreground",
               )}
             >
-              <Menu className="h-5 w-5" aria-hidden />
+              <span
+                className={cn(
+                  "flex h-7 w-12 items-center justify-center rounded-full",
+                  moreActive && "bg-brand text-brand-foreground",
+                )}
+              >
+                <Menu className="h-[18px] w-[18px]" aria-hidden />
+              </span>
               More
             </SheetTrigger>
-            <SheetContent side="bottom" className="max-h-[85svh] overflow-y-auto rounded-t-xl">
+            <SheetContent side="bottom" className="max-h-[85svh] overflow-y-auto rounded-t-3xl">
               <SheetHeader className="mb-4 text-left">
                 <SheetTitle>Menu</SheetTitle>
                 <SheetDescription className="sr-only">All sections</SheetDescription>

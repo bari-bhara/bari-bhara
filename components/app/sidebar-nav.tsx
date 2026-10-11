@@ -27,7 +27,7 @@ export function SidebarNavList({
   badges?: NavBadges;
 }) {
   return (
-    <ul className="grid gap-1">
+    <ul className="grid gap-0.5">
       {NAV_ITEMS[variant].map((item) => {
         const active = isNavItemActive(item, pathname);
         const badge = badges?.[item.href] ?? 0;
@@ -38,17 +38,19 @@ export function SidebarNavList({
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                active && "bg-accent text-foreground",
+                "flex min-h-11 items-center gap-3 rounded-full px-4 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                active && "bg-accent font-medium text-foreground",
               )}
             >
-              <item.icon className="h-4 w-4 shrink-0" aria-hidden />
+              <item.icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-primary")} aria-hidden />
               {item.label}
-              {badge > 0 && (
-                <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-primary-foreground">
+              {badge > 0 ? (
+                <span className="ml-auto rounded-full bg-brand px-2 py-0.5 text-[11px] font-semibold leading-none text-brand-foreground">
                   {badge}
                   <span className="sr-only"> unread</span>
                 </span>
+              ) : (
+                active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />
               )}
             </Link>
           </li>

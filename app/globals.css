@@ -158,3 +158,23 @@
     letter-spacing: -0.02em;
   }
 }
+
+@layer components {
+  /* OrbitGauge: the arc draws in once on load; the reduced-motion guard above stops it. */
+  .orbit-arc {
+    animation: orbit-draw 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .orbit-satellite {
+    animation: orbit-fade 0.4s ease-out 1s both;
+  }
+  @keyframes orbit-draw {
+    from {
+      stroke-dashoffset: var(--orbit-length);
+    }
+  }
+  @keyframes orbit-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
