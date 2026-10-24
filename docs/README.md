@@ -16,6 +16,7 @@ This folder is the single source of truth for how Bari Bhara is planned, designe
 ### Plans
 - [0001 — Initial architecture & roadmap](plans/0001-initial-architecture-and-roadmap.md) (Accepted)
 - [0002 — UI refresh: modern, friendlier, token-driven](plans/0002-ui-refresh.md) (Accepted)
+- [0003 — Product feedback, round 1 (landlord and tenant)](plans/0003-feedback-round-1.md) (Accepted)
 
 ### Architecture Decision Records
 - [0001 — Supabase as the only backend](adr/0001-supabase-as-backend.md) (Accepted)
@@ -26,6 +27,9 @@ This folder is the single source of truth for how Bari Bhara is planned, designe
 - [0006 — Local Supabase CLI workflow](adr/0006-local-supabase-cli-workflow.md) (Accepted)
 - [0007 — Tenants read their data through column-safe functions](adr/0007-tenant-reads-through-safe-functions.md) (Accepted)
 - [0008 — Token-driven "moss & lime" visual language](adr/0008-design-tokens-and-visual-language.md) (Accepted)
+- [0009 — Scheduled charge generation with pg_cron](adr/0009-scheduled-charge-generation-with-pg-cron.md) (Accepted)
+- [0010 — Dated monthly charge schedules per unit](adr/0010-unit-charge-schedules.md) (Accepted)
+- [0011 — Invite codes stay visible until used or expired](adr/0011-recoverable-invite-codes.md) (Accepted)
 
 ### Architecture reference
 - [Database](architecture/database.md)

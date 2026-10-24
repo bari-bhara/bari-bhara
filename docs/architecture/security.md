@@ -66,6 +66,8 @@ These live in the Supabase dashboard, not in the repo. The [runbook](../runbooks
 - **Access-token hook enabled.** Without it the proxy can't redirect by role. Pages still render correctly, because the DAL reads the role from `profiles`.
 - **Custom SMTP (Resend)** for auth emails. The built-in sender is heavily rate-limited.
 - **Leaked-password protection**, if the plan includes it.
+- **`pg_cron` enabled** (the migration enables it) so rent and fixed bills are created on the 1st ([ADR 0009](../adr/0009-scheduled-charge-generation-with-pg-cron.md)). The job runs `private.run_charge_schedule()`, which isn't reachable through the API.
+- **Vault secret `invite_code_key`**, created by the `20261024150000_recoverable_invite_codes` migration. Don't rotate it without re-encrypting unused codes (or let them expire first).
 
 ## Known gaps and recommendations
 
@@ -77,6 +79,9 @@ These live in the Supabase dashboard, not in the repo. The [runbook](../runbooks
 - **No cooldown on a single "Send reminder".** Bulk reminders skip tenants reminded in the last 20 hours, but a landlord can send one charge's reminder repeatedly to their own tenant. Consider a short per-charge cooldown.
 - **No app-level rate limiting** beyond Supabase Auth's limits and the invite lockout. Fine at current scale; add it for any public endpoint that sends email or SMS.
 - **No MFA, no photo deletion, no account deletion flow.** These are product features, not regressions.
+- **Invite codes are recoverable** (since [ADR 0011](../adr/0011-recoverable-invite-codes.md)). Each code is also stored encrypted with a key in Supabase Vault so the landlord can see it until it's used or expires. A database dump alone doesn't reveal codes; the dump plus the Vault key, or a landlord's session, does. Codes remain single-use, expire in 7 days, and the claim lockout still applies.
+- **Tenants can learn their landlord team's email addresses.** The "new payment claim" email is sent from the tenant's request (there's no service-role key), so `payment_claim_recipients()` returns the org members' emails to the claim's author: once per claim, within 10 minutes of submitting. Landlords usually share their contact details with tenants anyway; a server-side mail queue would remove this if it matters.
+- **Tenant ID documents** are in a private bucket readable only by members of the tenant's organization (path-checked policies), served through 1-hour signed links. Tenants can't read them, including their own.
 - **Activity log is not tamper-evident.** It's written by definer triggers, and users can't insert into it directly. Treat it as an audit aid, not evidence.
 
 ## How to re-check

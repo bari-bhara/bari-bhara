@@ -1,6 +1,6 @@
 # 0002 — Tenant onboarding via invite code
 
-- **Status:** Accepted
+- **Status:** Accepted; how codes are stored is superseded by [0011](0011-recoverable-invite-codes.md)
 - **Date:** 2026-10-03
 
 ## Context

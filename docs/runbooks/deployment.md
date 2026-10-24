@@ -42,6 +42,8 @@ Dashboard paths are as of 2026; names may shift slightly.
   - Sender: an address on the verified domain (e.g. `no-reply@…`), name "Bari Bhara".
 - [ ] **Authentication → Rate Limits:** once custom SMTP is on, raise "emails sent per hour" from the built-in-SMTP default to suit expected signups.
 - [ ] **Project Settings → API:** exposed schemas stay `public` and `graphql_public` (the default). Never expose `private`.
+- [ ] **After the `20261024130000_charge_schedules` migration** (it enables `pg_cron` and schedules the job): check it in **Integrations → Cron** (or `select * from cron.job`). Runs and failures are in `cron.job_run_details`. Rent and fixed bills then appear in the first hour of the 1st, in each organization's time zone ([ADR 0009](../adr/0009-scheduled-charge-generation-with-pg-cron.md)).
+- [ ] **After the `20261024150000_recoverable_invite_codes` migration:** **Project Settings → Vault** shows the `invite_code_key` secret it created. Keep it; rotating it makes unused invite codes unreadable until a new code is made ([ADR 0011](../adr/0011-recoverable-invite-codes.md)).
 - [ ] Note the **project ref**, **database password**, **project URL** and **publishable key** for the next steps.
 
 ### 3. GitHub (migrations)
