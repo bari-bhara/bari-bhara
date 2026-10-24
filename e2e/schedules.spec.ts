@@ -75,7 +75,9 @@ test.describe("monthly charge schedule", () => {
     const unitUrl = page.url();
 
     await page.getByRole("link", { name: "Edit" }).click();
-    await page.getByLabel("Electricity meter no.").fill("EM-55021");
+    await expect(page.getByRole("heading", { level: 1, name: /^Edit unit/ })).toBeVisible();
+    // Next keeps the visited Add unit form mounted but hidden; use the visible one.
+    await page.getByLabel("Electricity meter no.").filter({ visible: true }).fill("EM-55021");
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Electricity meter: EM-55021")).toBeVisible();
 
