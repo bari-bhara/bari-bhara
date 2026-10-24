@@ -6,10 +6,10 @@
 - **Builds on:** [0001](0001-initial-architecture-and-roadmap.md), [0002](0002-ui-refresh.md)
 
 ### Progress
-- [ ] A. UI quick wins: list menus and row clicks, property/tenant/bill/notice/settings fixes, ID documents, tenant home labels
-- [ ] B. Charge schedules: per-unit monthly items, automatic generation, rent changes with notice, metered bills, prepaid meters
-- [ ] C. Collection: record payment from Rent & Bills, outstanding page, tenant "Already paid" claims, monthly statements
-- [ ] D. Invite codes visible until used or expired
+- [x] A. UI quick wins: list menus and row clicks, property/tenant/bill/notice/settings fixes, ID documents, tenant home labels
+- [x] B. Charge schedules: per-unit monthly items, automatic generation, rent changes with notice, metered bills, prepaid meters
+- [x] C. Collection: record payment from Rent & Bills, outstanding page, tenant "Already paid" claims, monthly statements
+- [x] D. Invite codes visible until used or expired
 
 > Living document: tick a phase when it lands and record decisions under "Changelog".
 
@@ -69,3 +69,14 @@ See [ADR 0011](../adr/0011-recoverable-invite-codes.md).
 
 ## Changelog
 - 2026-10-24: Plan written from the team's feedback. The user chose: generation on the 1st via pg_cron, per-unit dated items, invite codes visible until used or expired, claim alerts in-app and by email. Item 1.4.1 is deferred at the user's request.
+- 2026-10-24: Phases A–D done (branch `claude/charming-hawking-ulixcz`). Decisions made during implementation:
+  - Phases landed together on one branch rather than four, since the session works on a single branch; migrations stay one per phase (`20261024120000_feedback_ui`, `…130000_charge_schedules`, `…140000_payment_claims`, `…150000_recoverable_invite_codes`).
+  - "Record payment from Rent & Bills" (Phase C.1) landed with Phase A's row menus; the menu opens the existing payment dialog in place.
+  - The scheduler runs hourly and bills each organization's **current** month, so mid-month move-ins are billed automatically, as the Generate button always did (no proration). It never re-creates a charge the landlord voided; the button can.
+  - A change to rent or a monthly bill must start next month or later (`BB019`), so issued charges and the current month never change. Cancelling a scheduled change doesn't notify the tenant.
+  - The "new claim" email is sent from the tenant's request (no service-role key), via `payment_claim_recipients()`, which hands the org members' emails to the claim's author once. Recorded as a known gap in `architecture/security.md`. The landlord's in-app signal is a badge on Rent & Bills, a banner on /rent, a dashboard card and a claims card on the charge page; landlords have no notifications inbox.
+  - Statements show the last six billing months and live on the tenant's Payments page and the landlord's tenant page.
+  - Maintenance keeps its card list without a row menu: opening the request is its only action.
+  - Added shared `RowActions`, `ClickableRow`, `Combobox` (`cmdk` + Radix Popover, written by hand because the shadcn registry wasn't reachable) and `EditDetailsDialog`.
+  - E2E: `feedback`, `schedules` and `collections` specs. Existing rent assertions now accept "Overdue" once the due day has passed (they were date-dependent). Locators on pages reached after a similar page use visible-only matches, since Next keeps visited routes mounted but hidden.
+  - Verified: typecheck, lint, `next build`, `db lint` + advisors clean, and 164/164 E2E against `next start` with the local stack.

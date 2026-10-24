@@ -141,7 +141,7 @@ test.describe("notices", () => {
 
     // Seeded live notice: no Edit.
     await page.goto("/notices");
-    await page.getByRole("link", { name: /All tenants/ }).first().click();
+    await page.getByRole("link", { name: /Water supply interruption/ }).first().click();
     await expect(page.getByRole("button", { name: "Delete" }).filter({ visible: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Edit" }).filter({ visible: true })).toHaveCount(0);
   });

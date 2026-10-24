@@ -152,7 +152,8 @@ test.describe("tenant view", () => {
     await expect(page.getByText("Meter reading 10452")).toBeVisible();
 
     await page.goto("/tenant/payments");
-    await expect(page.getByText(/BK9P4L2Z/)).toBeVisible();
+    // The monthly breakdown lists it too; check the payment history.
+    await expect(page.getByRole("list", { name: "Payments" }).getByText(/BK9P4L2Z/)).toBeVisible();
   });
 });
 
