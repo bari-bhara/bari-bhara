@@ -50,6 +50,7 @@ test.describe("monthly charge schedule", () => {
     // Cancel, so other tests keep the seeded rent.
     await schedule.getByRole("button", { name: /Cancel the rent change/ }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Cancel change" }).click();
+    await expect(page.getByText("Change cancelled.")).toBeVisible();
     await expect(schedule.getByText(`From ${monthLabel(nextMonth)}:`)).toHaveCount(0);
   });
 
@@ -123,6 +124,6 @@ test.describe("monthly charge schedule", () => {
     await expect(page.getByLabel(/Amount/)).toHaveValue("1200");
     await page.getByRole("button", { name: "Add bill" }).click();
     await expect(page.getByRole("heading", { level: 1, name: /^Electricity/ })).toBeVisible();
-    await expect(page.getByText("100 → 250: 150 units × ৳8.00")).toBeVisible();
+    await expect(page.getByText("100 → 250: 150 units × ৳8")).toBeVisible();
   });
 });

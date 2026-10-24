@@ -84,6 +84,7 @@ test.describe("payment claims", () => {
     await landlord.goto("/rent/claims");
     await landlord.getByRole("button", { name: `Approve ${name}'s claim` }).click();
     await landlord.getByRole("alertdialog").getByRole("button", { name: "Approve and record" }).click();
+    await expect(landlord.getByText("Payment recorded.")).toBeVisible();
     // Other tests' claims may still be listed.
     await expect(landlord.getByRole("button", { name: `Approve ${name}'s claim` })).toHaveCount(0);
 
@@ -111,6 +112,7 @@ test.describe("payment claims", () => {
     await expect(landlord.getByText("Tell the tenant why, so they can sort it out.")).toBeVisible();
     await landlord.getByRole("dialog").getByLabel("Reason").fill("No payment arrived");
     await landlord.getByRole("dialog").getByRole("button", { name: "Reject claim" }).click();
+    await expect(landlord.getByText("Claim rejected. The tenant has been told.")).toBeVisible();
     await expect(landlord.getByRole("button", { name: `Reject ${name}'s claim` })).toHaveCount(0);
 
     await tenant.reload();
@@ -126,7 +128,7 @@ test.describe("outstanding and statements", () => {
   test("the dashboard links to everything outstanding, overdue first", async ({ page }) => {
     await login(page, USERS.landlordA.email);
     await expect(page).toHaveURL("/dashboard");
-    await page.getByRole("link", { name: "Outstanding" }).click();
+    await page.getByRole("link", { name: "Outstanding", exact: true }).click();
     await expect(page).toHaveURL("/outstanding");
     const owing = page.getByRole("list", { name: "Tenants owing" });
     // Rahim's rent from last month is overdue (seed), so he's near the top.

@@ -131,9 +131,11 @@ test.describe("notices", () => {
     await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
 
     await page.getByRole("link", { name: "Edit" }).click();
-    await expect(page.getByLabel(/Publish at/)).toHaveValue("2030-01-01T09:00");
+    await expect(page.getByRole("heading", { level: 1, name: "Edit notice" })).toBeVisible();
+    // Next keeps the visited /notices/new form mounted but hidden; use the visible one.
+    await expect(page.getByLabel(/Publish at/).filter({ visible: true })).toHaveValue("2030-01-01T09:00");
     const edited = `${title} (edited)`;
-    await page.getByLabel("Title").fill(edited);
+    await page.getByLabel("Title").filter({ visible: true }).fill(edited);
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByRole("heading", { level: 1, name: edited })).toBeVisible();
 
