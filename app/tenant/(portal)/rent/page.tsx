@@ -5,26 +5,43 @@ import { PageHeader } from "@/components/app/page-header";
 import { Pagination } from "@/components/app/pagination";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChargeStatusBadge } from "@/features/charges/components/charge-status-badge";
+import { meterSummary } from "@/features/charges/schema";
+import { AlreadyPaidDialog } from "@/features/claims/components/already-paid-dialog";
+import { getMyLatestClaims } from "@/features/claims/queries";
 import {
   getMyOpenCharges,
   getMyPaidCharges,
   getMyTenancies,
   type MyCharge,
 } from "@/features/tenant-portal/queries";
-import { formatDay, formatMoney, formatMonth } from "@/lib/format";
+import { formatDay, formatMoney, formatMonth, todayIn } from "@/lib/format";
 import { PAGE_SIZE, parsePage, withPage } from "@/lib/pagination";
+import type { PaymentClaim } from "@/types/domain";
 
 export const metadata: Metadata = { title: "My Rent" };
 
 const OPEN_ORDER = { overdue: 0, unpaid: 1, partially_paid: 2 } as Record<string, number>;
 
-function ChargeRow({ charge, currency }: { charge: MyCharge; currency: string }) {
+function ChargeRow({
+  charge,
+  currency,
+  claim,
+  today,
+}: {
+  charge: MyCharge;
+  currency: string;
+  /** The tenant's latest "already paid" claim on this charge, if any. */
+  claim?: PaymentClaim;
+  /** "YYYY-MM-DD" in the landlord's time zone; open charges only. */
+  today?: string;
+}) {
   const open = charge.outstanding > 0;
+  const label = `${charge.type_label} · ${formatMonth(charge.billing_month)}`;
   return (
     <li className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 font-medium">
-          {charge.type_label} · {formatMonth(charge.billing_month)}
+          {label}
           <ChargeStatusBadge status={charge.effective_status} />
         </p>
         <p className="text-sm text-muted-foreground">
@@ -32,6 +49,33 @@ function ChargeRow({ charge, currency }: { charge: MyCharge; currency: string })
           {charge.home && ` · ${charge.home}`}
         </p>
         {charge.description && <p className="text-sm text-muted-foreground">{charge.description}</p>}
+        {charge.meter_current !== null && (
+          <p className="text-sm text-muted-foreground">Meter {meterSummary(charge, currency)}</p>
+        )}
+        {open && claim?.status === "rejected" && (
+          <p className="text-sm text-destructive">
+            Your landlord couldn&apos;t confirm your payment of {formatMoney(claim.amount, currency)}
+            {claim.review_note && `: ${claim.review_note}`}
+          </p>
+        )}
+        {open && today && (
+          <div className="mt-2">
+            {claim?.status === "pending" ? (
+              <p className="text-sm font-medium">
+                You said you paid {formatMoney(claim.amount, currency)}. Waiting for your landlord to confirm.
+              </p>
+            ) : (
+              <AlreadyPaidDialog
+                chargeId={charge.id}
+                chargeLabel={label}
+                outstanding={charge.outstanding}
+                outstandingLabel={formatMoney(charge.outstanding, currency)}
+                currency={currency}
+                today={today}
+              />
+            )}
+          </div>
+        )}
       </div>
       <div className="shrink-0 text-right tabular-nums">
         <p className="font-medium">{formatMoney(open ? charge.outstanding : charge.amount, currency)}</p>
@@ -46,11 +90,13 @@ function ChargeRow({ charge, currency }: { charge: MyCharge; currency: string })
 /** Open charges are all shown; `?page=` pages through the paid history. */
 export default async function TenantRentPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const page = parsePage((await searchParams).page);
-  const [openCharges, { rows: settled, total: settledTotal }, tenancies] = await Promise.all([
+  const [openCharges, { rows: settled, total: settledTotal }, tenancies, claims] = await Promise.all([
     getMyOpenCharges(),
     getMyPaidCharges(page),
     getMyTenancies(),
+    getMyLatestClaims(),
   ]);
+  const zoneByTenancy = new Map(tenancies.map((t) => [t.tenancy_id, t.timezone]));
   const currency = tenancies[0]?.currency ?? "BDT";
 
   const open = openCharges.sort(
@@ -92,7 +138,13 @@ export default async function TenantRentPage({ searchParams }: { searchParams: P
                 <CardContent className="pt-6">
                   <ul className="divide-y">
                     {open.map((charge) => (
-                      <ChargeRow key={charge.id} charge={charge} currency={currency} />
+                      <ChargeRow
+                        key={charge.id}
+                        charge={charge}
+                        currency={currency}
+                        claim={claims.get(charge.id)}
+                        today={todayIn(zoneByTenancy.get(charge.tenancy_id))}
+                      />
                     ))}
                   </ul>
                 </CardContent>

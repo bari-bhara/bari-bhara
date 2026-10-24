@@ -73,12 +73,13 @@ test.describe("rent and payments", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: `Rent · ${monthLabel(thisMonth)}` }),
     ).toBeVisible();
-    await expect(status(page)).toHaveText("Unpaid");
+    // Overdue once the property's due day has passed this month.
+    await expect(status(page)).toHaveText(/^(Unpaid|Overdue)$/);
 
     // Partial payment.
     await recordPayment(page, "5000");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(status(page)).toHaveText("Partly paid");
+    await expect(status(page)).toHaveText(/^(Partly paid|Overdue)$/);
     await expect(page.getByText("৳9,000").filter({ visible: true }).first()).toBeVisible();
 
     // More than what's due is refused.
@@ -97,7 +98,7 @@ test.describe("rent and payments", () => {
     await page.getByRole("dialog").getByLabel("Reason").fill("Bounced");
     await page.getByRole("dialog").getByRole("button", { name: "Void payment" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(status(page)).toHaveText("Partly paid");
+    await expect(status(page)).toHaveText(/^(Partly paid|Overdue)$/);
     await expect(page.getByText("Void: Bounced")).toBeVisible();
     await expect(page.getByRole("button", { name: "Record payment" })).toBeVisible();
   });

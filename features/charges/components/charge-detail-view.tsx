@@ -15,7 +15,10 @@ import { RemindersList } from "@/features/notifications/components/reminders-lis
 import { SendReminderButton } from "@/features/notifications/components/send-reminder-button";
 import { describeReach } from "@/features/notifications/labels";
 import { getTenantContact, listReminders } from "@/features/notifications/queries";
+import { ClaimsList } from "@/features/claims/components/claims-list";
+import { listChargeClaims } from "@/features/claims/queries";
 import { VoidDialog } from "./void-dialog";
+import { meterSummary } from "../schema";
 
 /** One charge with its payments and actions. Used by /rent/[id] and /bills/[id]. */
 export async function ChargeDetailView({ id, category }: { id: string; category: ChargeCategory }) {
@@ -23,10 +26,13 @@ export async function ChargeDetailView({ id, category }: { id: string; category:
   if (!charge) notFound();
   // Keep URLs canonical: rent lives under /rent, utilities under /bills.
   if (charge.category !== category) redirect(chargeHref(charge));
-  const [reminders, contact] = await Promise.all([
+  const [reminders, contact, claims] = await Promise.all([
     listReminders({ chargeId: charge.id }),
     getTenantContact(charge.tenant_id),
+    listChargeClaims(charge.id),
   ]);
+  const pendingClaims = claims.filter((c) => c.status === "pending");
+  const reviewedClaims = claims.filter((c) => c.status !== "pending");
   const reach = contact ? describeReach(contact) : null;
 
   const currency = organization?.currency ?? "BDT";
@@ -87,6 +93,9 @@ export async function ChargeDetailView({ id, category }: { id: string; category:
                     </Link>
                   ),
                 },
+                ...(charge.meter_current !== null && charge.meter_previous !== null && charge.unit_rate !== null
+                  ? [{ label: "Meter", value: meterSummary(charge, currency) }]
+                  : []),
                 ...(charge.description ? [{ label: "Description", value: charge.description }] : []),
                 ...(isVoid && charge.voided_at
                   ? [
@@ -143,6 +152,29 @@ export async function ChargeDetailView({ id, category }: { id: string; category:
             )}
           </CardContent>
         </Card>
+
+        {claims.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant says they paid</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {pendingClaims.length > 0 && (
+                <ClaimsList claims={pendingClaims} currency={currency} timeZone={timezone} />
+              )}
+              {reviewedClaims.length > 0 && (
+                <ul className="grid gap-1 text-sm text-muted-foreground" aria-label="Reviewed claims">
+                  {reviewedClaims.map((claim) => (
+                    <li key={claim.id}>
+                      {formatMoney(claim.amount, currency)} on {formatDay(claim.paid_on)}:{" "}
+                      {claim.status === "approved" ? "approved" : `rejected${claim.review_note ? ` (${claim.review_note})` : ""}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

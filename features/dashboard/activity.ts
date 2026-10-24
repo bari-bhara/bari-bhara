@@ -32,7 +32,7 @@ export function describeActivity(entry: ActivityEntry, currency: string): Activi
       const month = str(meta.billing_month);
       const count = typeof meta.count === "number" ? meta.count : 0;
       return {
-        text: `Generated ${count} rent ${count === 1 ? "charge" : "charges"}${month ? ` for ${formatMonth(month)}` : ""}`,
+        text: `Generated ${count} ${count === 1 ? "charge" : "charges"} (rent and monthly bills)${month ? ` for ${formatMonth(month)}` : ""}`,
         detail: null,
         href: month ? `/rent?month=${month.slice(0, 7)}` : "/rent",
       };
@@ -47,6 +47,18 @@ export function describeActivity(entry: ActivityEntry, currency: string): Activi
       return {
         text: amount ? `Voided a ${amount} payment from ${who}` : `Voided a payment from ${who}`,
         detail: str(meta.reason),
+        href: chargeHref,
+      };
+    case "PAYMENT_CLAIMED":
+      return {
+        text: `${who} says they paid${amount ? ` ${amount}` : ""}`,
+        detail: null,
+        href: "/rent/claims",
+      };
+    case "PAYMENT_CLAIM_REVIEWED":
+      return {
+        text: `${meta.approved === true ? "Approved" : "Rejected"} ${who}'s payment claim${amount ? ` of ${amount}` : ""}`,
+        detail: null,
         href: chargeHref,
       };
     case "MAINTENANCE_CREATED":

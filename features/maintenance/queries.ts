@@ -1,5 +1,5 @@
 import "server-only";
-import { getMyTenancies } from "@/features/tenant-portal/queries";
+import { getHomeLabels, getMyTenancies } from "@/features/tenant-portal/queries";
 import { requireRole } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { pageRange, type Paged } from "@/lib/pagination";
@@ -154,7 +154,10 @@ export async function getRequestForLandlord(id: string): Promise<LandlordRequest
 
 export type TenantRequest = MaintenanceRequest & { home: string };
 
-export type TenantRequestListItem = Pick<MaintenanceRequest, "id" | "title" | "status" | "category" | "created_at">;
+export type TenantRequestListItem = Pick<
+  MaintenanceRequest,
+  "id" | "title" | "status" | "category" | "created_at"
+> & { home: string };
 
 /** A page of the tenant's own requests, newest first. */
 export async function listMyRequests(page = 1): Promise<Paged<TenantRequestListItem>> {
@@ -162,12 +165,16 @@ export async function listMyRequests(page = 1): Promise<Paged<TenantRequestListI
   const supabase = await createClient();
   const { data, error, count } = await supabase
     .from("maintenance_requests")
-    .select("id, title, status, category, created_at", { count: "exact" })
+    .select("id, title, status, category, created_at, unit_id", { count: "exact" })
     .order("created_at", { ascending: false })
     .order("id")
     .range(...pageRange(page));
   if (error) throw new Error(`Failed to load your requests: ${error.message}`);
-  return { rows: data, total: count ?? 0 };
+  const { byUnit } = await getHomeLabels();
+  return {
+    rows: data.map(({ unit_id, ...request }) => ({ ...request, home: byUnit.get(unit_id) ?? "" })),
+    total: count ?? 0,
+  };
 }
 
 export type TenantRequestDetail = TenantRequest & Thread;

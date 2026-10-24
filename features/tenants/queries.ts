@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { id as idSchema } from "@/lib/zod-fields";
 import type { Property, Tenancy, Tenant, TenantOverview, Unit } from "@/types/domain";
-import type { TenantListSort, TenantListStatus } from "./schema";
+import type { TenantDocumentKind, TenantListSort, TenantListStatus } from "./schema";
 
 /**
  * Tenant reads for landlord pages. RLS limits every query to the caller's
@@ -67,7 +67,8 @@ export type TenancyWithUnit = Tenancy & {
 export type TenantDetail = Tenant & {
   tenancies: TenancyWithUnit[];
   /** The unused, unexpired invite code, if any (the code itself is never readable). */
-  pendingInvite: { expires_at: string; created_at: string } | null;
+  /** The unused, unexpired invite; `code` is null for codes made before ADR 0011. */
+  pendingInvite: { expires_at: string; created_at: string; code: string | null } | null;
 };
 
 /** Returns null for malformed ids and for tenants outside the caller's org. */
@@ -100,10 +101,18 @@ export async function getTenant(id: string): Promise<TenantDetail | null> {
   }
   if (!tenantResult.data) return null;
 
+  // Codes stay readable until used or expired (ADR 0011).
+  let code: string | null = null;
+  if (inviteResult.data) {
+    const { data, error } = await supabase.rpc("get_tenant_invite_code", { p_tenant_id: id });
+    if (error) console.error("Failed to load invite code", error);
+    code = data?.[0]?.invite_code ?? null;
+  }
+
   return {
     ...tenantResult.data,
     tenancies: tenanciesResult.data ?? [],
-    pendingInvite: inviteResult.data,
+    pendingInvite: inviteResult.data ? { ...inviteResult.data, code } : null,
   };
 }
 
@@ -150,4 +159,39 @@ export async function listUnitTenancies(unitId: string): Promise<UnitTenancy[]> 
 
   if (error) throw new Error(`Failed to load tenancies: ${error.message}`);
   return data;
+}
+
+export type TenantDocument = {
+  id: string;
+  kind: TenantDocumentKind;
+  file_name: string;
+  created_at: string;
+  /** Short-lived signed link to the file; null if signing failed. */
+  url: string | null;
+};
+
+/** A tenant's ID documents with signed links (valid for an hour). */
+export async function listTenantDocuments(tenantId: string): Promise<TenantDocument[]> {
+  await requireRole("landlord");
+  if (!idSchema.safeParse(tenantId).success) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tenant_documents")
+    .select("id, kind, file_name, created_at, storage_path")
+    .eq("tenant_id", tenantId)
+    .order("created_at");
+  if (error) throw new Error(`Failed to load documents: ${error.message}`);
+  if (data.length === 0) return [];
+
+  const { data: signed, error: signError } = await supabase.storage
+    .from("tenant-documents")
+    .createSignedUrls(
+      data.map((d) => d.storage_path),
+      60 * 60,
+    );
+  if (signError) console.error("Sign document URLs failed", signError);
+  const urls = new Map(signed?.map((s) => [s.path, s.signedUrl]) ?? []);
+
+  return data.map(({ storage_path, ...doc }) => ({ ...doc, url: urls.get(storage_path) ?? null }));
 }

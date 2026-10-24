@@ -4,7 +4,8 @@ import { PROPERTIES, USERS, login, uniqueName } from "./helpers";
 async function createProperty(page: Page, name: string) {
   await page.goto("/properties/new");
   await page.getByLabel("Property name").fill(name);
-  await page.getByLabel("City (optional)").fill("Dhaka");
+  await page.getByLabel("Address").fill("House 5, Road 12, Gulshan");
+  await page.getByLabel("City").fill("Dhaka");
   await page.getByRole("button", { name: "Add property" }).click();
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
 }
@@ -76,11 +77,43 @@ test.describe("landlord manages properties and units", () => {
 
   test("validates the property form", async ({ page }) => {
     await page.goto("/properties/new");
-    await page.getByLabel("Rent due day").fill("31");
+    await expect(page.getByLabel("Address")).toHaveAttribute("placeholder", "e.g. House, Road, Area");
     await page.getByRole("button", { name: "Add property" }).click();
     await expect(page.getByText("Enter a property name.")).toBeVisible();
-    await expect(page.getByText("Choose a day between 1 and 28.")).toBeVisible();
+    await expect(page.getByText("Enter the address.")).toBeVisible();
+    await expect(page.getByText("Enter the city.")).toBeVisible();
     await expect(page).toHaveURL("/properties/new");
+  });
+
+  test("picks the rent due day from a searchable list", async ({ page }) => {
+    const name = uniqueName("E2E Due Day");
+    await page.goto("/properties/new");
+    await page.getByLabel("Property name").fill(name);
+    await page.getByLabel("Address").fill("House 9, Road 3, Dhanmondi");
+    await page.getByLabel("City").fill("Dhaka");
+    await page.getByRole("combobox", { name: "Rent due day" }).click();
+    await page.getByPlaceholder("Search days…").fill("12");
+    await expect(page.getByRole("option")).toHaveCount(1);
+    await page.getByRole("option", { name: "12th" }).click();
+    await expect(page.getByRole("combobox", { name: "Rent due day" })).toHaveText("12th");
+    await page.getByRole("button", { name: "Add property" }).click();
+    await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+    await expect(page.getByText("12th").first()).toBeVisible();
+  });
+
+  test("switches the property list between grid and list views", async ({ page, isMobile }) => {
+    await page.goto("/properties");
+    await page.getByRole("navigation", { name: "View" }).getByRole("link", { name: "List" }).click();
+    await expect(page).toHaveURL("/properties?view=list");
+    if (isMobile) {
+      await expect(page.getByRole("link", { name: new RegExp(PROPERTIES.landlordA.name) })).toBeVisible();
+      return;
+    }
+    const row = page.getByRole("row").filter({ hasText: PROPERTIES.landlordA.name });
+    await expect(row).toBeVisible();
+    // Clicking anywhere in a row opens it, like the first-column link.
+    await row.getByRole("cell").nth(2).click();
+    await expect(page.getByRole("heading", { level: 1, name: PROPERTIES.landlordA.name })).toBeVisible();
   });
 
   test("archives, restores and deletes an empty property", async ({ page }) => {

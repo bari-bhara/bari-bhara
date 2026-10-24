@@ -48,6 +48,10 @@ export const unitSchema = z.object({
   // Any status parses; the actions reject hand-set changes to or from "occupied".
   status: z.enum(UNIT_STATUSES as [UnitStatus, ...UnitStatus[]], "Choose a status."),
   notes: optionalText(1000),
+  // Prepaid meters: tenants see these to top up.
+  electricityAccountNo: optionalText(40),
+  electricityMeterNo: optionalText(40),
+  gasMeterNo: optionalText(40),
 });
 export type UnitFormValues = z.input<typeof unitSchema>;
 export type UnitInput = z.output<typeof unitSchema>;
@@ -66,4 +70,16 @@ export const EMPTY_UNIT: UnitFormValues = {
   defaultRent: "",
   status: "vacant",
   notes: "",
+  electricityAccountNo: "",
+  electricityMeterNo: "",
+  gasMeterNo: "",
 };
+
+/** Change a unit's rent or a fixed monthly bill from a future month (ADR 0010). */
+export const scheduleChargeSchema = z.object({
+  chargeTypeId: z.string().min(1, "Choose what to bill.").pipe(id),
+  amount: money(),
+  effectiveMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Choose a month."),
+});
+export type ScheduleChargeFormValues = z.input<typeof scheduleChargeSchema>;
+export type ScheduleChargeInput = z.output<typeof scheduleChargeSchema>;

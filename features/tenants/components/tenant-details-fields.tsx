@@ -38,7 +38,7 @@ export function TenantDetailsFields() {
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone (optional)</FormLabel>
+              <FormLabel>Phone</FormLabel>
               <FormControl>
                 <Input type="tel" inputMode="tel" autoComplete="off" placeholder="+8801…" {...field} />
               </FormControl>

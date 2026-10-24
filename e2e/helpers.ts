@@ -60,6 +60,8 @@ export async function createUnit(page: Page) {
   const property = uniqueName("E2E Tenancy House");
   await page.goto("/properties/new");
   await page.getByLabel("Property name").fill(property);
+  await page.getByLabel("Address").fill("House 1, Road 2, Banani");
+  await page.getByLabel("City").fill("Dhaka");
   await page.getByRole("button", { name: "Add property" }).click();
   await expect(page.getByRole("heading", { level: 1, name: property })).toBeVisible();
   await page.getByRole("link", { name: "Add unit" }).first().click();
@@ -77,7 +79,7 @@ export async function addTenantToUnit(page: Page, name: string) {
   await page.getByRole("link", { name: "Add tenant" }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "Add tenant" })).toBeVisible();
   await page.getByLabel("Full name").fill(name);
-  await page.getByLabel("Phone (optional)").fill("+8801799000000");
+  await page.getByLabel("Phone").fill("+8801799000000");
   // Rent is prefilled from the unit's default rent.
   await expect(page.getByRole("textbox", { name: /Monthly rent/ })).toHaveValue("14000");
   await page.getByRole("button", { name: "Add tenant" }).click();

@@ -28,16 +28,27 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { applyFieldErrors } from "@/lib/forms";
 import type { NoticeAudience } from "@/types/domain";
-import { createNotice } from "../actions";
+import { createNotice, updateNotice } from "../actions";
 import { AUDIENCE_LABELS, noticeSchema, type NoticeInput } from "../schema";
 
 type Target = { id: string; name: string; units: { id: string; unit_number: string }[] };
 
-export function NoticeForm({ targets, timeZone }: { targets: Target[]; timeZone: string }) {
+/** Write a notice, or edit a scheduled one when `noticeId` is given. */
+export function NoticeForm({
+  targets,
+  timeZone,
+  noticeId,
+  defaultValues,
+}: {
+  targets: Target[];
+  timeZone: string;
+  noticeId?: string;
+  defaultValues?: NoticeInput;
+}) {
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<NoticeInput>({
     resolver: zodResolver(noticeSchema),
-    defaultValues: {
+    defaultValues: defaultValues ?? {
       title: "",
       body: "",
       audience: "all",
@@ -51,7 +62,7 @@ export function NoticeForm({ targets, timeZone }: { targets: Target[]; timeZone:
 
   async function onSubmit(values: NoticeInput) {
     setFormError(null);
-    const result = await createNotice(values);
+    const result = noticeId ? await updateNotice(noticeId, values) : await createNotice(values);
     if (result && !result.ok) {
       setFormError(result.error);
       applyFieldErrors(form, result.fieldErrors);
@@ -217,10 +228,16 @@ export function NoticeForm({ targets, timeZone }: { targets: Target[]; timeZone:
         </div>
         <div className="flex flex-col-reverse gap-3 sm:flex-row">
           <Button asChild variant="outline" className="h-11 sm:h-10">
-            <Link href="/notices">Cancel</Link>
+            <Link href={noticeId ? `/notices/${noticeId}` : "/notices"}>Cancel</Link>
           </Button>
           <Button type="submit" className="h-11 sm:h-10" disabled={submitting}>
-            {submitting ? "Publishing…" : "Publish notice"}
+            {noticeId
+              ? submitting
+                ? "Saving…"
+                : "Save changes"
+              : submitting
+                ? "Publishing…"
+                : "Publish notice"}
           </Button>
         </div>
       </form>

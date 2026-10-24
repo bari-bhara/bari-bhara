@@ -5,7 +5,11 @@ import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { BillForm } from "@/features/charges/components/bill-form";
-import { listBillableTenancies, listUtilityTypes } from "@/features/charges/queries";
+import {
+  listBillableTenancies,
+  listLastMeterReadings,
+  listUtilityTypes,
+} from "@/features/charges/queries";
 import { isMonth } from "@/features/charges/schema";
 import { getCurrentOrganization } from "@/lib/dal";
 import { todayIn } from "@/lib/format";
@@ -17,11 +21,12 @@ export default async function NewBillPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const [{ month }, tenancies, types, organization] = await Promise.all([
+  const [{ month }, tenancies, types, organization, lastReadings] = await Promise.all([
     searchParams,
     listBillableTenancies(),
     listUtilityTypes(),
     getCurrentOrganization(),
+    listLastMeterReadings(),
   ]);
   const today = todayIn(organization?.timezone);
   const back = { href: isMonth(month) ? `/bills?month=${month}` : "/bills", label: "Utility bills" };
@@ -44,6 +49,7 @@ export default async function NewBillPage({
         <BillForm
           tenancies={tenancies}
           types={types}
+          lastReadings={lastReadings}
           currency={organization?.currency ?? "BDT"}
           defaultValues={{
             tenancyId: tenancies.length === 1 ? tenancies[0].id : "",
@@ -52,6 +58,9 @@ export default async function NewBillPage({
             amount: "",
             dueDate: today,
             description: "",
+            meterPrevious: "",
+            meterCurrent: "",
+            unitRate: "",
           }}
         />
       )}

@@ -19,7 +19,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, phone")
     .eq("id", data.claims.sub)
     .maybeSingle();
 
@@ -34,6 +34,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     email: data.claims.email ?? "",
     role: profile.role,
     fullName: profile.full_name,
+    phone: profile.phone ?? "",
   };
 });
 

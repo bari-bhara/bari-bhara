@@ -72,3 +72,50 @@ export function countByStatus(units: Pick<Unit, "status">[]) {
   for (const unit of units) counts[unit.status] += 1;
   return counts;
 }
+
+export type ScheduleLine = {
+  chargeTypeId: string;
+  label: string;
+  isRent: boolean;
+  /** Billed this month; 0 if the item hasn't started or has ended. */
+  current: number;
+  /** Changes from next month on, earliest first. */
+  upcoming: { id: string; amount: number; month: string }[];
+};
+
+/**
+ * What the unit is billed each month (ADR 0010): the amount in force this
+ * month and any scheduled changes, per charge type. Rent first.
+ */
+export async function getUnitSchedule(unitId: string, currentMonth: string): Promise<ScheduleLine[]> {
+  await requireRole("landlord");
+  if (!idSchema.safeParse(unitId).success) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("unit_charge_items")
+    .select("id, amount, effective_month, charge_type:charge_types!inner(id, label, category)")
+    .eq("unit_id", unitId)
+    .order("effective_month");
+  if (error) throw new Error(`Failed to load monthly charges: ${error.message}`);
+
+  const month = `${currentMonth}-01`;
+  const lines = new Map<string, ScheduleLine>();
+  for (const row of data) {
+    const type = row.charge_type;
+    const line = lines.get(type.id) ?? {
+      chargeTypeId: type.id,
+      label: type.label,
+      isRent: type.category === "rent",
+      current: 0,
+      upcoming: [],
+    };
+    // Rows are in month order, so the last one on or before this month wins.
+    if (row.effective_month <= month) line.current = row.amount;
+    else line.upcoming.push({ id: row.id, amount: row.amount, month: row.effective_month });
+    lines.set(type.id, line);
+  }
+  return [...lines.values()]
+    .filter((line) => line.current > 0 || line.upcoming.length > 0)
+    .sort((a, b) => Number(b.isRent) - Number(a.isRent) || a.label.localeCompare(b.label));
+}

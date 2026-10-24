@@ -1,5 +1,5 @@
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { ClickableRow } from "@/components/app/clickable-row";
 import {
   Table,
   TableBody,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { formatDay, formatMoney } from "@/lib/format";
 import type { ChargeCategory, ChargeOverview } from "@/types/domain";
+import { ChargeRowActions } from "./charge-row-actions";
 import { ChargeStatusBadge } from "./charge-status-badge";
 
 export function chargeHref(charge: { id: string; category: ChargeCategory }) {
@@ -25,20 +26,36 @@ export function ChargesList({
   charges,
   currency,
   showType = false,
+  today,
 }: {
   charges: ChargeOverview[];
   currency: string;
+  /** "YYYY-MM-DD" in the organization's time zone, for recording payments. */
+  today: string;
   /** Show the bill type (utilities); rent rows are all "Rent". */
   showType?: boolean;
 }) {
+  const rowActions = (charge: ChargeOverview, className?: string) => (
+    <ChargeRowActions
+      label={`Actions for ${charge.tenant_name}, ${charge.type_label}`}
+      href={chargeHref(charge)}
+      chargeId={charge.id}
+      outstanding={charge.status === "void" ? 0 : charge.outstanding}
+      outstandingLabel={formatMoney(charge.outstanding, currency)}
+      currency={currency}
+      today={today}
+      className={className}
+    />
+  );
+
   return (
     <>
       <ul className="grid grid-cols-1 gap-2 md:hidden">
         {charges.map((charge) => (
-          <li key={charge.id}>
+          <li key={charge.id} className="relative">
             <Link
               href={chargeHref(charge)}
-              className="flex items-center gap-3 surface-interactive p-4"
+              className="flex items-center gap-3 surface-interactive p-4 pr-14"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -57,8 +74,8 @@ export function ChargesList({
               <span className="shrink-0 text-right text-sm font-medium tabular-nums">
                 {formatMoney(charge.amount, currency)}
               </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             </Link>
+            {rowActions(charge, "absolute right-2 top-1/2 -translate-y-1/2")}
           </li>
         ))}
       </ul>
@@ -73,11 +90,14 @@ export function ChargesList({
               <TableHead className="text-right">Amount</TableHead>
               <TableHead className="text-right">Paid</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-12">
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {charges.map((charge) => (
-              <TableRow key={charge.id}>
+              <ClickableRow key={charge.id} href={chargeHref(charge)}>
                 <TableCell className="font-medium">
                   <Link href={chargeHref(charge)} className="hover:underline">
                     {charge.tenant_name}
@@ -99,7 +119,8 @@ export function ChargesList({
                 <TableCell>
                   <ChargeStatusBadge status={charge.effective_status} />
                 </TableCell>
-              </TableRow>
+                <TableCell className="py-2 text-right">{rowActions(charge)}</TableCell>
+              </ClickableRow>
             ))}
           </TableBody>
         </Table>

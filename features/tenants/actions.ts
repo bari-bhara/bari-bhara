@@ -14,14 +14,20 @@ import { getCurrentOrganization, requireRole } from "@/lib/dal";
 import { todayIn } from "@/lib/format";
 import {
   DB_ALREADY_LINKED,
+  DB_DOCUMENT_PATH_INVALID,
   DB_NOT_FOUND,
+  DB_TOO_MANY_DOCUMENTS,
   DB_TENANCY_FROZEN,
   DB_UNIT_UNAVAILABLE,
   PG_UNIQUE_VIOLATION,
 } from "@/lib/postgres-errors";
+import { filledByTrigger } from "@/lib/supabase/insert";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
 import { id as idSchema } from "@/lib/zod-fields";
 import {
+  DOCUMENT_LIMITS,
+  TENANT_DOCUMENT_KINDS,
   addTenantSchema,
   moveInSchema,
   moveOutSchema,
@@ -29,6 +35,7 @@ import {
   type AddTenantFormValues,
   type MoveInFormValues,
   type MoveOutFormValues,
+  type TenantDocumentKind,
   type TenantFormValues,
 } from "./schema";
 
@@ -51,7 +58,14 @@ function tenancyErrorMessage(error: PostgrestError): string | null {
   }
 }
 
-export async function addTenant(input: AddTenantFormValues): Promise<ActionResult> {
+/**
+ * Adds a tenant and their first tenancy, then opens their page. With
+ * `stay`, returns the ids instead, so the browser can upload ID documents first.
+ */
+export async function addTenant(
+  input: AddTenantFormValues,
+  options: { stay?: boolean } = {},
+): Promise<ActionResult<{ tenantId: string; orgId: string }>> {
   await requireRole("landlord");
   const parsed = addTenantSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
@@ -75,7 +89,84 @@ export async function addTenant(input: AddTenantFormValues): Promise<ActionResul
     console.error("Add tenant failed", error);
     return fail(GENERIC_ERROR);
   }
-  redirect(`/tenants/${tenantId}`);
+  if (!options.stay) redirect(`/tenants/${tenantId}`);
+
+  const { data: tenant, error: tenantError } = await supabase
+    .from("tenants")
+    .select("org_id")
+    .eq("id", tenantId)
+    .single();
+  if (tenantError) {
+    console.error("Load new tenant failed", tenantError);
+    return fail(GENERIC_ERROR);
+  }
+  return ok({ tenantId, orgId: tenant.org_id });
+}
+
+const documentSchema = z.object({
+  kind: z.enum(Object.keys(TENANT_DOCUMENT_KINDS) as [TenantDocumentKind], "Choose the document type."),
+  storagePath: z.string().min(1).max(300),
+  fileName: z.string().trim().max(200),
+});
+
+/** Records an ID document the browser already uploaded to Storage. */
+export async function registerTenantDocument(
+  tenantId: string,
+  input: { kind: string; storagePath: string; fileName: string },
+): Promise<ActionResult> {
+  await requireRole("landlord");
+  if (!idSchema.safeParse(tenantId).success) return fail(TENANT_NOT_FOUND);
+  const parsed = documentSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("tenant_documents").insert(
+    filledByTrigger<"tenant_documents", "org_id">(
+      {
+        tenant_id: tenantId,
+        kind: parsed.data.kind,
+        storage_path: parsed.data.storagePath,
+        file_name: parsed.data.fileName,
+      },
+      ["org_id"],
+    ),
+  );
+  if (error) {
+    if (error.code === DB_TOO_MANY_DOCUMENTS) {
+      return fail(`A tenant can have at most ${DOCUMENT_LIMITS.maxCount} documents.`);
+    }
+    if (error.code === DB_DOCUMENT_PATH_INVALID) return fail("The file didn't finish uploading. Please try again.");
+    if (error.code === DB_NOT_FOUND) return fail(TENANT_NOT_FOUND);
+    console.error("Register tenant document failed", error);
+    return fail(GENERIC_ERROR);
+  }
+  refresh();
+  return ok();
+}
+
+/** Deletes an ID document and its file. */
+export async function deleteTenantDocument(documentId: string): Promise<ActionResult> {
+  await requireRole("landlord");
+  if (!idSchema.safeParse(documentId).success) return fail("This document no longer exists.");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tenant_documents")
+    .delete()
+    .eq("id", documentId)
+    .select("storage_path")
+    .maybeSingle();
+  if (error) {
+    console.error("Delete tenant document failed", error);
+    return fail(GENERIC_ERROR);
+  }
+  if (!data) return fail("This document no longer exists.");
+
+  // The row is gone either way; a leftover file is only reachable by members.
+  const { error: storageError } = await supabase.storage.from("tenant-documents").remove([data.storage_path]);
+  if (storageError) console.error("Delete document file failed", storageError);
+  refresh();
+  return ok();
 }
 
 export async function updateTenant(id: string, input: TenantFormValues): Promise<ActionResult> {

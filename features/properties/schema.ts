@@ -3,8 +3,8 @@ import { optionalText, requiredText, wholeNumber } from "@/lib/zod-fields";
 
 export const propertySchema = z.object({
   name: requiredText(120, "Enter a property name."),
-  address: optionalText(300),
-  city: optionalText(80),
+  address: requiredText(300, "Enter the address."),
+  city: requiredText(80, "Enter the city."),
   rentDueDay: wholeNumber(1, 28, "Choose a day between 1 and 28."),
   notes: optionalText(1000),
 });

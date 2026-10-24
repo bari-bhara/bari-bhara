@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { GENERIC_ERROR, fail, invalid, type ActionResult } from "@/lib/action-result";
 import { getCurrentOrganization, requireRole } from "@/lib/dal";
 import { zonedDateTimeToIso } from "@/lib/format";
-import { DB_NOTICE_NEEDS_UNITS, PG_FOREIGN_KEY_VIOLATION } from "@/lib/postgres-errors";
+import {
+  DB_NOT_FOUND,
+  DB_NOTICE_NEEDS_UNITS,
+  DB_NOTICE_PUBLISHED,
+  PG_FOREIGN_KEY_VIOLATION,
+} from "@/lib/postgres-errors";
 import { sqlNull } from "@/lib/supabase/rpc";
 import { createClient } from "@/lib/supabase/server";
 import { id as idSchema } from "@/lib/zod-fields";
@@ -39,6 +44,42 @@ export async function createNotice(input: NoticeInput): Promise<ActionResult> {
     if (error.code === DB_NOTICE_NEEDS_UNITS) return fail("Choose at least one unit.");
     if (error.code === PG_FOREIGN_KEY_VIOLATION) return fail("A chosen property or unit no longer exists.");
     console.error("Create notice failed", error);
+    return fail(GENERIC_ERROR);
+  }
+  redirect(`/notices/${id}`);
+}
+
+/** Edits a notice that hasn't been published yet. */
+export async function updateNotice(id: string, input: NoticeInput): Promise<ActionResult> {
+  await requireRole("landlord");
+  if (!idSchema.safeParse(id).success) return fail("This notice no longer exists.");
+  const parsed = noticeSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const notice = parsed.data;
+  if (notice.propertyId && !idSchema.safeParse(notice.propertyId).success) return fail("Choose a property.");
+  if (notice.unitIds.some((u) => !idSchema.safeParse(u).success)) return fail("Choose valid units.");
+
+  const organization = await getCurrentOrganization();
+  if (!organization) return fail(GENERIC_ERROR);
+  const timezone = organization.timezone;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_notice", {
+    p_id: id,
+    p_title: notice.title,
+    p_body: notice.body,
+    p_audience: notice.audience,
+    p_property_id: sqlNull(notice.audience === "property" ? notice.propertyId : null),
+    p_unit_ids: sqlNull(notice.audience === "units" ? notice.unitIds : null),
+    p_publish_at: sqlNull(notice.publishAt ? zonedDateTimeToIso(notice.publishAt, timezone) : null),
+    p_expires_at: sqlNull(notice.expiresAt ? zonedDateTimeToIso(notice.expiresAt, timezone) : null),
+  });
+  if (error) {
+    if (error.code === DB_NOTICE_PUBLISHED) return fail("This notice is already published, so it can't be edited.");
+    if (error.code === DB_NOT_FOUND) return fail("This notice no longer exists.");
+    if (error.code === DB_NOTICE_NEEDS_UNITS) return fail("Choose at least one unit.");
+    if (error.code === PG_FOREIGN_KEY_VIOLATION) return fail("A chosen property or unit no longer exists.");
+    console.error("Update notice failed", error);
     return fail(GENERIC_ERROR);
   }
   redirect(`/notices/${id}`);

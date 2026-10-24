@@ -112,3 +112,10 @@ export function zonedDateTimeToIso(local: string, timeZone = DEFAULT_TIME_ZONE) 
   instant = naiveUtc - zoneOffsetMinutes(new Date(instant), timeZone) * 60_000;
   return new Date(instant).toISOString();
 }
+
+/** The inverse of zonedDateTimeToIso: an instant as a datetime-local value in `timeZone`. */
+export function isoToZonedDateTime(iso: string, timeZone = DEFAULT_TIME_ZONE) {
+  const date = new Date(iso);
+  const shifted = new Date(date.getTime() + zoneOffsetMinutes(date, timeZone) * 60_000);
+  return shifted.toISOString().slice(0, 16);
+}

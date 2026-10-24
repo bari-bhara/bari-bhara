@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { getHomeLabels } from "@/features/tenant-portal/queries";
 import { getCurrentUser, requireRole } from "@/lib/dal";
 import { createClient } from "@/lib/supabase/server";
 import { id as idSchema } from "@/lib/zod-fields";
@@ -29,8 +30,11 @@ export async function listReminders(filter: { chargeId: string } | { tenantId: s
   return data;
 }
 
-/** The tenant's in-app notifications, newest first (RLS limits it to theirs). */
-export async function listMyNotifications(): Promise<Notification[]> {
+/**
+ * The tenant's in-app notifications, newest first (RLS limits it to theirs),
+ * each labelled with the home it's about.
+ */
+export async function listMyNotifications(): Promise<(Notification & { home: string })[]> {
   await requireRole("tenant");
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -40,7 +44,25 @@ export async function listMyNotifications(): Promise<Notification[]> {
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw new Error(`Failed to load notifications: ${error.message}`);
-  return data;
+
+  // A charge's reminder is about that charge's home; others about the tenant's homes in that org.
+  const chargeIds = [...new Set(data.flatMap((n) => (n.charge_id ? [n.charge_id] : [])))];
+  const [homes, charges] = await Promise.all([
+    getHomeLabels(),
+    chargeIds.length > 0
+      ? supabase.from("charges").select("id, tenancy_id").in("id", chargeIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (charges.error) throw new Error(`Failed to load notifications: ${charges.error.message}`);
+  const chargeTenancy = new Map((charges.data ?? []).map((c) => [c.id, c.tenancy_id]));
+
+  return data.map((n) => {
+    const tenancyId = n.charge_id ? chargeTenancy.get(n.charge_id) : undefined;
+    const home = tenancyId
+      ? (homes.byTenancy.get(tenancyId) ?? "")
+      : homes.forNotice({ org_id: n.org_id, audience: "all", property_id: null });
+    return { ...n, home };
+  });
 }
 
 /** Unread in-app notifications for the signed-in tenant (0 for anyone else). */

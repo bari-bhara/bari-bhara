@@ -203,6 +203,36 @@ export function UnitForm({
             )}
           />
         </div>
+        <fieldset className="grid gap-5">
+          <legend className="mb-1 text-base font-semibold">Prepaid meters (optional)</legend>
+          <p className="-mt-3 text-sm text-muted-foreground">
+            The tenant sees these numbers so they can top up their meters.
+          </p>
+          <div className="grid gap-5 sm:grid-cols-3">
+            {(
+              [
+                ["electricityAccountNo", "Electricity account no."],
+                ["electricityMeterNo", "Electricity meter no."],
+                ["gasMeterNo", "Gas meter no."],
+              ] as const
+            ).map(([name, label]) => (
+              <FormField
+                key={name}
+                control={form.control}
+                name={name}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{label}</FormLabel>
+                    <FormControl>
+                      <Input autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ))}
+          </div>
+        </fieldset>
         <FormField
           control={form.control}
           name="notes"

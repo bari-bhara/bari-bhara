@@ -39,6 +39,13 @@ export function HomeCard({ tenancy }: { tenancy: MyTenancy }) {
               ? [{ label: "Moved out", value: formatDay(tenancy.move_out_date) }]
               : []),
             ...(details ? [{ label: "Unit", value: details }] : []),
+            ...(active && tenancy.electricity_account_no
+              ? [{ label: "Electricity account", value: tenancy.electricity_account_no }]
+              : []),
+            ...(active && tenancy.electricity_meter_no
+              ? [{ label: "Electricity meter", value: tenancy.electricity_meter_no }]
+              : []),
+            ...(active && tenancy.gas_meter_no ? [{ label: "Gas meter", value: tenancy.gas_meter_no }] : []),
             { label: "Landlord", value: tenancy.organization_name },
           ]}
         />

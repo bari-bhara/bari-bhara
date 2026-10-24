@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { Pencil } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DetailList } from "@/components/app/detail-list";
 import { PageHeader } from "@/components/app/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteNoticeButton } from "@/features/notices/components/delete-notice-button";
 import { NoticeStateBadge } from "@/features/notices/components/notice-state-badge";
@@ -17,13 +20,25 @@ export default async function NoticePage({ params }: { params: Promise<{ id: str
   const [notice, organization] = await Promise.all([getNotice(id), getCurrentOrganization()]);
   if (!notice) notFound();
   const timezone = organization?.timezone;
+  const state = noticeState(notice);
 
   return (
     <>
       <PageHeader
         title={notice.title}
         back={{ href: "/notices", label: "Notices" }}
-        actions={<DeleteNoticeButton noticeId={notice.id} />}
+        actions={
+          <>
+            {state === "scheduled" && (
+              <Button asChild variant="outline">
+                <Link href={`/notices/${notice.id}/edit`}>
+                  <Pencil aria-hidden /> Edit
+                </Link>
+              </Button>
+            )}
+            <DeleteNoticeButton noticeId={notice.id} />
+          </>
+        }
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <Card>
@@ -34,7 +49,7 @@ export default async function NoticePage({ params }: { params: Promise<{ id: str
         <Card className="h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Details <NoticeStateBadge state={noticeState(notice)} />
+              Details <NoticeStateBadge state={state} />
             </CardTitle>
           </CardHeader>
           <CardContent>

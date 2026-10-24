@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatMoney } from "@/lib/format";
 import { id, isoDate, money, optionalText } from "@/lib/zod-fields";
 import type { EffectiveStatus, PaymentMethod } from "@/types/domain";
 
@@ -60,13 +61,61 @@ export const voidSchema = z.object({
 });
 export type VoidInput = z.infer<typeof voidSchema>;
 
-export const billSchema = z.object({
-  tenancyId: z.string().min(1, "Choose who to bill.").pipe(id),
-  chargeTypeId: z.string().min(1, "Choose a bill type.").pipe(id),
-  billingMonth: z.string().regex(MONTH_PATTERN, "Choose the month this bill is for."),
-  amount: positiveMoney,
-  dueDate: isoDate("Enter the due date."),
-  description: optionalText(200),
-});
+/** "" → null; otherwise a non-negative number with up to `decimals` places. */
+const optionalReading = (decimals: number, message: string) =>
+  z
+    .string()
+    .trim()
+    .regex(new RegExp(`^(\\d{1,10}(\\.\\d{1,${decimals}})?)?$`), message)
+    .transform((value) => (value === "" ? null : Number(value)));
+
+export const billSchema = z
+  .object({
+    tenancyId: z.string().min(1, "Choose who to bill.").pipe(id),
+    chargeTypeId: z.string().min(1, "Choose a bill type.").pipe(id),
+    billingMonth: z.string().regex(MONTH_PATTERN, "Choose the month this bill is for."),
+    amount: positiveMoney,
+    dueDate: isoDate("Enter the due date."),
+    description: optionalText(200),
+    // Metered bills (ADR 0010): all three or none; the amount is computed from them.
+    meterPrevious: optionalReading(2, "Enter a reading like 10452."),
+    meterCurrent: optionalReading(2, "Enter a reading like 10603."),
+    unitRate: optionalReading(4, "Enter a rate like 8.5."),
+  })
+  .superRefine((bill, ctx) => {
+    const readings = [bill.meterPrevious, bill.meterCurrent, bill.unitRate];
+    if (readings.every((r) => r === null)) return;
+    if (bill.meterPrevious === null) {
+      ctx.addIssue({ code: "custom", path: ["meterPrevious"], message: "Enter the previous reading." });
+    }
+    if (bill.meterCurrent === null) {
+      ctx.addIssue({ code: "custom", path: ["meterCurrent"], message: "Enter the current reading." });
+    }
+    if (bill.unitRate === null) {
+      ctx.addIssue({ code: "custom", path: ["unitRate"], message: "Enter the rate per unit." });
+    }
+    if (bill.meterPrevious !== null && bill.meterCurrent !== null && bill.meterCurrent < bill.meterPrevious) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["meterCurrent"],
+        message: "The current reading can't be below the previous one.",
+      });
+    }
+  });
+
+/** "10452 → 10603: 151 units × ৳8.50", or "" for a bill without readings. */
+export function meterSummary(
+  charge: { meter_previous: number | null; meter_current: number | null; unit_rate: number | null },
+  currency: string,
+) {
+  if (charge.meter_previous === null || charge.meter_current === null || charge.unit_rate === null) return "";
+  const used = Math.round((charge.meter_current - charge.meter_previous) * 100) / 100;
+  return `${charge.meter_previous} → ${charge.meter_current}: ${used} units × ${formatMoney(charge.unit_rate, currency)}`;
+}
+
+/** The amount for a metered bill: units used × rate, to the paisa. */
+export function meteredAmount(previous: number, current: number, rate: number) {
+  return Math.round((current - previous) * rate * 100) / 100;
+}
 export type BillFormValues = z.input<typeof billSchema>;
 export type BillInput = z.output<typeof billSchema>;

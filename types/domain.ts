@@ -66,7 +66,7 @@ export type MaintenanceOverview = Required<
   "tenancy_id" | "tenant_id" | "created_by" | "resolved_at" | "tenant_name"
 >;
 
-export type MyNotice = Required<Views["my_notices"]["Row"], "expires_at">;
+export type MyNotice = Required<Views["my_notices"]["Row"], "expires_at" | "property_id">;
 export type NoticeOverview = Required<
   Views["notice_overview"]["Row"],
   "property_id" | "expires_at" | "created_by" | "property_name"
@@ -78,4 +78,12 @@ export type SessionUser = {
   email: string;
   role: UserRole;
   fullName: string;
+  phone: string;
 };
+
+export type PaymentClaim = Tables["payment_claims"]["Row"];
+/** A claim with tenant, home and charge names, for landlord lists. */
+export type PaymentClaimOverview = Required<
+  Views["payment_claim_overview"]["Row"],
+  "reviewed_by" | "reviewed_at" | "payment_id" | "landlord_notified_at" | "created_by"
+>;

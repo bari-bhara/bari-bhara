@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { GENERIC_ERROR, fail, ok, type ActionResult } from "@/lib/action-result";
 import { getCurrentOrganization, requireRole } from "@/lib/dal";
 import { deliver } from "@/lib/notifications/dispatch";
+import { channelsFor, type Recipient } from "@/lib/notifications/recipients";
 import { paymentReminder, type ReminderCharge } from "@/lib/notifications/templates";
 import type { NotificationChannel } from "@/lib/notifications/types";
 import type { Database } from "@/lib/supabase/database.types";
@@ -16,14 +17,6 @@ import type { ChargeOverview, Organization } from "@/types/domain";
 /** Bulk reminders skip tenants who were successfully reminded this recently. */
 const RECENT_REMINDER_HOURS = 20;
 
-type Recipient = { id: string; full_name: string; email: string; user_id: string | null };
-
-function channelsFor(tenant: Recipient): NotificationChannel[] {
-  const channels: NotificationChannel[] = [];
-  if (tenant.user_id) channels.push("in_app");
-  if (tenant.email) channels.push("email");
-  return channels;
-}
 
 function toReminderCharge(charge: ChargeOverview): ReminderCharge {
   return {

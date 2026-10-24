@@ -11,8 +11,9 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { getCurrentOrganization, requireRole } from "@/lib/dal";
-import { todayIn } from "@/lib/format";
+import { formatDay, formatMonth, todayIn } from "@/lib/format";
 import {
+  DB_BILL_MONTH_OUTSIDE_TENANCY,
   DB_CHARGE_HAS_PAYMENTS,
   DB_CHARGE_VOID,
   DB_NOT_FOUND,
@@ -25,6 +26,7 @@ import { id as idSchema } from "@/lib/zod-fields";
 import {
   billSchema,
   isMonth,
+  meteredAmount,
   recordPaymentSchema,
   voidSchema,
   type BillFormValues,
@@ -53,17 +55,25 @@ function chargeErrorMessage(error: PostgrestError): string | null {
   }
 }
 
+function moveInMonthMessage(moveInDate: string) {
+  return `Choose ${formatMonth(moveInDate)} or later: the tenant moved in on ${formatDay(moveInDate)}.`;
+}
+
 function fieldError(field: string, message: string): ActionResult<never> {
   return { ok: false, error: "Please fix the highlighted fields.", fieldErrors: { [field]: [message] } };
 }
 
-/** Creates rent for every current tenancy for `month` ("YYYY-MM"). Safe to repeat. */
+/**
+ * Creates `month`'s ("YYYY-MM") rent and fixed monthly bills for every current
+ * tenancy, from each unit's schedule (ADR 0010). Safe to repeat. The scheduler
+ * does this on the 1st (ADR 0009); this is the manual fallback.
+ */
 export async function generateRent(month: string): Promise<ActionResult<{ created: number }>> {
   await requireRole("landlord");
   if (!isMonth(month)) return fail("Choose a month.");
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("generate_monthly_rent", { p_month: `${month}-01` });
+  const { data, error } = await supabase.rpc("generate_monthly_charges", { p_month: `${month}-01` });
   if (error) {
     console.error("Generate rent failed", error);
     return fail(GENERIC_ERROR);
@@ -81,7 +91,7 @@ export async function createBill(input: BillFormValues): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: tenancy, error: tenancyError } = await supabase
     .from("tenancies")
-    .select("org_id")
+    .select("org_id, move_in_date")
     .eq("id", bill.tenancyId)
     .maybeSingle();
   if (tenancyError) {
@@ -89,6 +99,14 @@ export async function createBill(input: BillFormValues): Promise<ActionResult> {
     return fail(GENERIC_ERROR);
   }
   if (!tenancy) return fieldError("tenancyId", "This tenancy no longer exists.");
+  if (bill.billingMonth < tenancy.move_in_date.slice(0, 7)) {
+    return fieldError("billingMonth", moveInMonthMessage(tenancy.move_in_date));
+  }
+
+  const metered = bill.meterPrevious !== null && bill.meterCurrent !== null && bill.unitRate !== null;
+  // A metered bill's amount always comes from its readings.
+  const amount = metered ? meteredAmount(bill.meterPrevious!, bill.meterCurrent!, bill.unitRate!) : bill.amount;
+  if (amount <= 0) return fieldError("amount", "The readings give an amount of zero.");
 
   const row = filledByTrigger<"charges", "unit_id" | "category">(
     {
@@ -96,15 +114,21 @@ export async function createBill(input: BillFormValues): Promise<ActionResult> {
       tenancy_id: bill.tenancyId,
       charge_type_id: bill.chargeTypeId,
       billing_month: `${bill.billingMonth}-01`,
-      amount: bill.amount,
+      amount,
       due_date: bill.dueDate,
       description: bill.description,
+      meter_previous: bill.meterPrevious,
+      meter_current: bill.meterCurrent,
+      unit_rate: bill.unitRate,
     },
     ["unit_id", "category"],
   );
   const { data, error } = await supabase.from("charges").insert(row).select("id").single();
 
   if (error) {
+    if (error.code === DB_BILL_MONTH_OUTSIDE_TENANCY) {
+      return fieldError("billingMonth", moveInMonthMessage(tenancy.move_in_date));
+    }
     const message = chargeErrorMessage(error);
     if (message) return fail(message);
     console.error("Create bill failed", error);

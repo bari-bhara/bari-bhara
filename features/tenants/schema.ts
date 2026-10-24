@@ -4,14 +4,14 @@ import {
   isoDate,
   money,
   optionalEmail,
-  optionalPhone,
   optionalText,
+  requiredPhone,
   requiredText,
 } from "@/lib/zod-fields";
 
 const tenantDetails = {
   fullName: requiredText(120, "Enter the tenant's full name."),
-  phone: optionalPhone,
+  phone: requiredPhone,
   email: optionalEmail,
   notes: optionalText(1000),
 };
@@ -73,3 +73,23 @@ export const TENANT_LIST_SORTS = {
   move_in: "Move-in date",
 } as const;
 export type TenantListSort = keyof typeof TENANT_LIST_SORTS;
+
+/** Identity documents a landlord can keep for a tenant (landlord-only). */
+export const TENANT_DOCUMENT_KINDS = {
+  nid: "National ID (NID)",
+  birth_certificate: "Birth registration certificate",
+  passport: "Passport",
+  other: "Other document",
+} as const;
+export type TenantDocumentKind = keyof typeof TENANT_DOCUMENT_KINDS;
+
+export function isTenantDocumentKind(value: unknown): value is TenantDocumentKind {
+  return typeof value === "string" && value in TENANT_DOCUMENT_KINDS;
+}
+
+/** Mirrors the tenant-documents bucket's limits. */
+export const DOCUMENT_LIMITS = {
+  maxBytes: 5 * 1024 * 1024,
+  maxCount: 10,
+  types: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+} as const;

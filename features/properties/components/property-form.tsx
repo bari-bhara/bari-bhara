@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Combobox } from "@/components/app/combobox";
 import { FormError } from "@/components/app/form-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ordinal } from "@/lib/format";
 import { applyFieldErrors } from "@/lib/forms";
 import { createProperty, updateProperty } from "../actions";
 import {
@@ -25,6 +27,12 @@ import {
   type PropertyFormValues,
   type PropertyInput,
 } from "../schema";
+
+/** "1st" … "28th": a due day must exist in every month. */
+const DUE_DAY_OPTIONS = Array.from({ length: 28 }, (_, i) => ({
+  value: String(i + 1),
+  label: ordinal(i + 1),
+}));
 
 /** Create a property, or edit one when `propertyId` is given. */
 export function PropertyForm({
@@ -79,9 +87,9 @@ export function PropertyForm({
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Address (optional)</FormLabel>
+              <FormLabel>Address</FormLabel>
               <FormControl>
-                <Input autoComplete="street-address" placeholder="House, road, area" {...field} />
+                <Input autoComplete="street-address" placeholder="e.g. House, Road, Area" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -93,7 +101,7 @@ export function PropertyForm({
             name="city"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>City (optional)</FormLabel>
+                <FormLabel>City</FormLabel>
                 <FormControl>
                   <Input autoComplete="address-level2" placeholder="e.g. Dhaka" {...field} />
                 </FormControl>
@@ -108,9 +116,14 @@ export function PropertyForm({
               <FormItem>
                 <FormLabel>Rent due day</FormLabel>
                 <FormControl>
-                  <Input inputMode="numeric" {...field} />
+                  <Combobox
+                    options={DUE_DAY_OPTIONS}
+                    value={field.value}
+                    onChange={field.onChange}
+                    searchPlaceholder="Search days…"
+                  />
                 </FormControl>
-                <FormDescription>Day of the month rent is due (1–28).</FormDescription>
+                <FormDescription>Day of the month rent is due.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

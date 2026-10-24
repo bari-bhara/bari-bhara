@@ -100,6 +100,20 @@ export async function getCharge(id: string): Promise<ChargeDetail | null> {
   return { ...(chargeResult.data as ChargeOverview), payments: paymentsResult.data };
 }
 
+/** The system rent type's id (ADR 0004: exactly one). */
+export async function getRentTypeId(): Promise<string> {
+  await requireRole("landlord");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("charge_types")
+    .select("id")
+    .eq("key", "rent")
+    .is("org_id", null)
+    .single();
+  if (error) throw new Error(`Failed to load the rent type: ${error.message}`);
+  return data.id;
+}
+
 /** Utility bill types the caller can use (system defaults + their own). */
 export async function listUtilityTypes(): Promise<Pick<ChargeType, "id" | "label">[]> {
   await requireRole("landlord");
@@ -118,6 +132,9 @@ export type BillableTenancy = {
   id: string;
   label: string;
   dueDay: number;
+  /** "YYYY-MM": the earliest month this tenancy can be billed for. */
+  firstMonth: string;
+  unitId: string;
 };
 
 /** Current tenancies, labelled "Property · Unit — Tenant", for the bill form. */
@@ -127,7 +144,7 @@ export async function listBillableTenancies(): Promise<BillableTenancy[]> {
   const { data, error } = await supabase
     .from("tenancies")
     .select(
-      "id, tenant:tenants!inner(full_name), unit:units!inner(unit_number, property:properties!inner(name, rent_due_day))",
+      "id, move_in_date, unit_id, tenant:tenants!inner(full_name), unit:units!inner(unit_number, property:properties!inner(name, rent_due_day))",
     )
     .eq("status", "active");
   if (error) throw new Error(`Failed to load tenancies: ${error.message}`);
@@ -137,8 +154,34 @@ export async function listBillableTenancies(): Promise<BillableTenancy[]> {
       id: t.id,
       label: `${t.unit.property.name} · Unit ${t.unit.unit_number} — ${t.tenant.full_name}`,
       dueDay: t.unit.property.rent_due_day,
+      firstMonth: t.move_in_date.slice(0, 7),
+      unitId: t.unit_id,
     }))
     .sort((a, b) => collator.compare(a.label, b.label));
+}
+
+/**
+ * The latest meter reading per unit and bill type, keyed "unitId:typeId", so
+ * a new metered bill starts from where the last one ended.
+ */
+export async function listLastMeterReadings(): Promise<Record<string, number>> {
+  await requireRole("landlord");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("charges")
+    .select("unit_id, charge_type_id, meter_current")
+    .not("meter_current", "is", null)
+    .neq("status", "void")
+    .order("billing_month", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) throw new Error(`Failed to load meter readings: ${error.message}`);
+  const readings: Record<string, number> = {};
+  for (const row of data) {
+    const key = `${row.unit_id}:${row.charge_type_id}`;
+    if (!(key in readings) && row.meter_current !== null) readings[key] = row.meter_current;
+  }
+  return readings;
 }
 
 /** A tenant's balance and latest charges, for their page. */
@@ -200,4 +243,65 @@ export async function listPayments({
 
   if (error) throw new Error(`Failed to load payments: ${error.message}`);
   return { payments: data as PaymentOverview[], total: count ?? 0 };
+}
+
+export type OutstandingTenant = {
+  tenantId: string;
+  tenantName: string;
+  homes: string[];
+  outstanding: number;
+  overdue: number;
+  /** Earliest due date among their open charges. */
+  oldestDue: string;
+  charges: ChargeOverview[];
+};
+
+/**
+ * Everything owed, grouped by tenant: tenants with overdue charges first
+ * (oldest first), then by amount.
+ */
+export async function listOutstanding(): Promise<{
+  tenants: OutstandingTenant[];
+  outstanding: number;
+  overdue: number;
+}> {
+  await requireRole("landlord");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("charge_overview")
+    .select("*")
+    .in("status", ["unpaid", "partially_paid"])
+    .order("due_date")
+    .order("id");
+  if (error) throw new Error(`Failed to load outstanding charges: ${error.message}`);
+
+  const byTenant = new Map<string, OutstandingTenant>();
+  for (const charge of data as ChargeOverview[]) {
+    const entry = byTenant.get(charge.tenant_id) ?? {
+      tenantId: charge.tenant_id,
+      tenantName: charge.tenant_name,
+      homes: [],
+      outstanding: 0,
+      overdue: 0,
+      oldestDue: charge.due_date,
+      charges: [],
+    };
+    const home = `${charge.property_name} · Unit ${charge.unit_number}`;
+    if (!entry.homes.includes(home)) entry.homes.push(home);
+    entry.outstanding += charge.outstanding;
+    if (charge.effective_status === "overdue") entry.overdue += charge.outstanding;
+    entry.charges.push(charge);
+    byTenant.set(charge.tenant_id, entry);
+  }
+  const tenants = [...byTenant.values()].sort(
+    (a, b) =>
+      Number(b.overdue > 0) - Number(a.overdue > 0) ||
+      a.oldestDue.localeCompare(b.oldestDue) ||
+      b.outstanding - a.outstanding,
+  );
+  return {
+    tenants,
+    outstanding: tenants.reduce((sum, t) => sum + t.outstanding, 0),
+    overdue: tenants.reduce((sum, t) => sum + t.overdue, 0),
+  };
 }

@@ -1,4 +1,4 @@
-import { AlertTriangle, Building2, DoorOpen, UserPlus, Wrench } from "lucide-react";
+import { AlertTriangle, Building2, DoorOpen, HandCoins, UserPlus, Wrench } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/app/empty-state";
@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/app/page-header";
 import { StatCard } from "@/components/app/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { listPendingClaims } from "@/features/claims/queries";
+import { PAYMENT_METHOD_LABELS } from "@/features/charges/schema";
 import { describeActivity } from "@/features/dashboard/activity";
 import { getLandlordDashboard } from "@/features/dashboard/queries";
 import { RemindOverdueButton } from "@/features/notifications/components/remind-overdue-button";
@@ -47,10 +49,11 @@ function ListCard({
 }
 
 export default async function DashboardPage() {
-  const [user, organization, data] = await Promise.all([
+  const [user, organization, data, claims] = await Promise.all([
     requireRole("landlord"),
     getCurrentOrganization(),
     getLandlordDashboard(),
+    listPendingClaims(),
   ]);
   const firstName = user.fullName.split(" ")[0];
   const currency = organization?.currency ?? "BDT";
@@ -116,6 +119,7 @@ export default async function DashboardPage() {
                 : "Nothing overdue"
             }
             icon={AlertTriangle}
+            href="/outstanding"
           />
           <StatCard
             label="Occupancy"
@@ -134,10 +138,32 @@ export default async function DashboardPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {claims.length > 0 && (
+          <ListCard title="Payment claims to review" href="/rent/claims" linkLabel="Review" empty={null}>
+            <ul className="divide-y" aria-label="Payment claims to review">
+              {claims.slice(0, 5).map((claim) => (
+                <li key={claim.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <HandCoins className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="font-medium">{claim.tenant_name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {claim.type_label} · {formatMonth(claim.billing_month)} · {PAYMENT_METHOD_LABELS[claim.method]}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums">
+                    {formatMoney(claim.amount, currency)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </ListCard>
+        )}
         <ListCard
           title="Overdue"
-          href="/rent"
-          linkLabel="Rent & bills"
+          href="/outstanding"
+          linkLabel="All outstanding"
           empty={data.overdue_tenants.length === 0 ? "Everyone is up to date." : null}
         >
           <div className="mb-3">

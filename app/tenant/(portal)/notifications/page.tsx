@@ -19,7 +19,7 @@ export default async function TenantNotificationsPage() {
   return (
     <>
       <MarkAllRead unread={unread} />
-      <PageHeader title="Reminders" description="Payment reminders from your landlord." />
+      <PageHeader title="Reminders" description="Payment reminders and rent updates from your landlord." />
       {notifications.length === 0 ? (
         <EmptyState icon={BellRing} title="No reminders" description="Payment reminders from your landlord will appear here." />
       ) : (
@@ -37,6 +37,7 @@ export default async function TenantNotificationsPage() {
                       {formatDateTime(n.created_at, tenancies[0]?.timezone)}
                     </span>
                   </div>
+                  {n.home && <p className="text-sm font-medium">{n.home}</p>}
                   {/* The message is plain text built by the server; links point to the rent page instead. */}
                   <p className="whitespace-pre-line text-sm text-muted-foreground">
                     {n.message.replace(/\n*See the details: .*$/m, "")}

@@ -48,6 +48,9 @@ export function RecordPaymentDialog({
   outstandingLabel,
   currency,
   today,
+  defaultOpen = false,
+  showTrigger = true,
+  onClosed,
 }: {
   chargeId: string;
   outstanding: number;
@@ -56,8 +59,16 @@ export function RecordPaymentDialog({
   currency: string;
   /** "YYYY-MM-DD" in the organization's time zone. */
   today: string;
+  /** Open on mount, e.g. when a list row's menu renders the dialog on demand. */
+  defaultOpen?: boolean;
+  showTrigger?: boolean;
+  onClosed?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(defaultOpen);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    if (!next) onClosed?.();
+  };
   const [formError, setFormError] = useState<string | null>(null);
   const defaults: RecordPaymentFormValues = {
     amount: String(outstanding),
@@ -97,11 +108,13 @@ export function RecordPaymentDialog({
         setOpen(next);
       }}
     >
-      <DialogTrigger asChild>
-        <Button>
-          <Plus aria-hidden /> Record payment
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus aria-hidden /> Record payment
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90svh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Record payment</DialogTitle>

@@ -4,7 +4,11 @@ import type { Database } from "@/lib/supabase/database.types";
 import { providerFor } from "./providers";
 import type { NotificationChannel } from "./types";
 
+export type NotificationType = Database["public"]["Enums"]["notification_type"];
+
 export type DeliveryRequest = {
+  /** Defaults to a payment reminder. */
+  type?: NotificationType;
   orgId: string;
   tenantId: string;
   chargeId: string | null;
@@ -32,7 +36,7 @@ export async function deliver(
         org_id: request.orgId,
         tenant_id: request.tenantId,
         charge_id: request.chargeId,
-        type: "payment_reminder" as const,
+        type: request.type ?? "payment_reminder",
         channel,
         subject: request.subject,
         message: request.text,

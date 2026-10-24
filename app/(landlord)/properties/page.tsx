@@ -6,6 +6,7 @@ import { FilterChips } from "@/components/app/filter-chips";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { PropertyCard } from "@/features/properties/components/property-card";
+import { PropertiesTable } from "@/features/properties/components/properties-table";
 import { listProperties } from "@/features/properties/queries";
 
 export const metadata: Metadata = { title: "Properties" };
@@ -13,10 +14,20 @@ export const metadata: Metadata = { title: "Properties" };
 export default async function PropertiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string }>;
+  searchParams: Promise<{ archived?: string; view?: string }>;
 }) {
-  const archived = (await searchParams).archived === "1";
+  const params = await searchParams;
+  const archived = params.archived === "1";
+  const view = params.view === "list" ? "list" : "grid";
   const properties = await listProperties({ archived });
+
+  const href = (changes: { archived?: boolean; view?: "grid" | "list" }) => {
+    const query = new URLSearchParams();
+    if (changes.archived ?? archived) query.set("archived", "1");
+    if ((changes.view ?? view) === "list") query.set("view", "list");
+    const search = query.toString();
+    return search ? `/properties?${search}` : "/properties";
+  };
 
   return (
     <>
@@ -31,12 +42,19 @@ export default async function PropertiesPage({
           </Button>
         }
       />
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterChips
           label="Show"
           chips={[
-            { label: "Active", href: "/properties", active: !archived },
-            { label: "Archived", href: "/properties?archived=1", active: archived },
+            { label: "Active", href: href({ archived: false }), active: !archived },
+            { label: "Archived", href: href({ archived: true }), active: archived },
+          ]}
+        />
+        <FilterChips
+          label="View"
+          chips={[
+            { label: "Grid", href: href({ view: "grid" }), active: view === "grid" },
+            { label: "List", href: href({ view: "list" }), active: view === "list" },
           ]}
         />
       </div>
@@ -61,6 +79,8 @@ export default async function PropertiesPage({
             }
           />
         )
+      ) : view === "list" ? (
+        <PropertiesTable properties={properties} />
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {properties.map((property) => (

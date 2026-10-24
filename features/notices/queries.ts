@@ -33,7 +33,7 @@ export async function listNotices(page = 1): Promise<Paged<NoticeListItem>> {
   return { rows: data as NoticeListItem[], total: count ?? 0 };
 }
 
-export type NoticeDetail = NoticeOverview & { units: string[] };
+export type NoticeDetail = NoticeOverview & { units: string[]; unitIds: string[] };
 
 export async function getNotice(id: string): Promise<NoticeDetail | null> {
   await requireRole("landlord");
@@ -44,7 +44,7 @@ export async function getNotice(id: string): Promise<NoticeDetail | null> {
     supabase.from("notice_overview").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("notice_units")
-      .select("unit:units!inner(unit_number, property:properties!inner(name))")
+      .select("unit_id, unit:units!inner(unit_number, property:properties!inner(name))")
       .eq("notice_id", id),
   ]);
   if (noticeResult.error) throw new Error(`Failed to load notice: ${noticeResult.error.message}`);
@@ -57,6 +57,7 @@ export async function getNotice(id: string): Promise<NoticeDetail | null> {
     units: unitsResult.data
       .map((row) => `${row.unit.property.name} · Unit ${row.unit.unit_number}`)
       .sort(collator.compare),
+    unitIds: unitsResult.data.map((row) => row.unit_id),
   };
 }
 

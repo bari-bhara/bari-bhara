@@ -120,8 +120,10 @@ from (values
 ) as v (tenant_id, property_id, unit_number, monthly_rent, security_deposit, move_in_date, move_out_date, move_out_reason, status)
 join public.units u on u.property_id = v.property_id and u.unit_number = v.unit_number;
 
-insert into public.tenant_invites (org_id, tenant_id, code_hash, expires_at)
-select org_id, id, encode(extensions.digest('B4R1BH4RA5', 'sha256'), 'hex'), now() + interval '30 days'
+insert into public.tenant_invites (org_id, tenant_id, code_hash, code_encrypted, expires_at)
+select
+  org_id, id, encode(extensions.digest('B4R1BH4RA5', 'sha256'), 'hex'),
+  extensions.pgp_sym_encrypt('B4R1BH4RA5', private.invite_code_key()), now() + interval '30 days'
 from public.tenants
 where id = 'dddddddd-0000-0000-0000-000000000002';
 

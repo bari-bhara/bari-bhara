@@ -1,10 +1,12 @@
-import { ChevronRight, CreditCard } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClickableRow } from "@/components/app/clickable-row";
 import { EmptyState } from "@/components/app/empty-state";
 import { FilterChips } from "@/components/app/filter-chips";
 import { PageHeader } from "@/components/app/page-header";
 import { Pagination } from "@/components/app/pagination";
+import { RowActions } from "@/components/app/row-actions";
 import {
   Table,
   TableBody,
@@ -29,6 +31,13 @@ import type { PaymentOverview } from "@/types/domain";
 export const metadata: Metadata = { title: "Payments" };
 
 type Params = { method?: string; voided?: string; page?: string };
+
+function actions(payment: PaymentOverview) {
+  return [
+    { label: "View charge", href: chargeHref({ id: payment.charge_id, category: payment.category }) },
+    { label: "View tenant", href: `/tenants/${payment.tenant_id}` },
+  ];
+}
 
 function forWhat(payment: PaymentOverview) {
   return `${payment.type_label} · ${formatMonth(payment.billing_month)}`;
@@ -88,10 +97,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <div className="grid grid-cols-1 gap-4">
           <ul className="grid grid-cols-1 gap-2 md:hidden">
             {payments.map((payment) => (
-              <li key={payment.id}>
+              <li key={payment.id} className="relative">
                 <Link
                   href={chargeHref({ id: payment.charge_id, category: payment.category })}
-                  className="flex items-center gap-3 surface-interactive p-4"
+                  className="flex items-center gap-3 surface-interactive p-4 pr-14"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">{payment.tenant_name}</p>
@@ -109,8 +118,12 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                   >
                     {formatMoney(payment.amount, currency)}
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </Link>
+                <RowActions
+                  label={`Actions for ${payment.tenant_name}'s payment`}
+                  actions={actions(payment)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                />
               </li>
             ))}
           </ul>
@@ -123,12 +136,26 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                   <TableHead>For</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="w-12">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payments.map((payment) => (
-                  <TableRow key={payment.id} className={payment.voided_at ? "text-muted-foreground" : undefined}>
-                    <TableCell className="whitespace-nowrap">{formatDay(payment.paid_on)}</TableCell>
+                  <ClickableRow
+                    key={payment.id}
+                    href={chargeHref({ id: payment.charge_id, category: payment.category })}
+                    className={payment.voided_at ? "text-muted-foreground" : undefined}
+                  >
+                    <TableCell className="whitespace-nowrap">
+                      <Link
+                        href={chargeHref({ id: payment.charge_id, category: payment.category })}
+                        className="hover:underline"
+                      >
+                        {formatDay(payment.paid_on)}
+                      </Link>
+                    </TableCell>
                     <TableCell className="font-medium">
                       <Link href={`/tenants/${payment.tenant_id}`} className="hover:underline">
                         {payment.tenant_name}
@@ -157,7 +184,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                       </span>
                       {payment.voided_at && <div className="text-xs">Void</div>}
                     </TableCell>
-                  </TableRow>
+                    <TableCell className="py-2 text-right">
+                      <RowActions
+                        label={`Actions for ${payment.tenant_name}'s payment`}
+                        actions={actions(payment)}
+                      />
+                    </TableCell>
+                  </ClickableRow>
                 ))}
               </TableBody>
             </Table>

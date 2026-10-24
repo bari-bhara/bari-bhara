@@ -45,13 +45,13 @@ isOneToOne: false
                   ]
                 },"charges": {
                   Row: {
-                    "amount": number,"amount_paid": number,"billing_month": string,"category": Database["public"]['Enums']["charge_category"],"charge_type_id": string,"created_at": string,"created_by": string | null,"description": string,"due_date": string,"id": string,"org_id": string,"status": Database["public"]['Enums']["charge_status"],"tenancy_id": string,"unit_id": string,"updated_at": string,"void_reason": string,"voided_at": string | null
+                    "amount": number,"amount_paid": number,"billing_month": string,"category": Database["public"]['Enums']["charge_category"],"charge_type_id": string,"created_at": string,"created_by": string | null,"description": string,"due_date": string,"id": string,"meter_current": number | null,"meter_previous": number | null,"org_id": string,"status": Database["public"]['Enums']["charge_status"],"tenancy_id": string,"unit_id": string,"unit_rate": number | null,"updated_at": string,"void_reason": string,"voided_at": string | null
                   }
                   Insert: {
-                    "amount": number,"amount_paid"?: number,"billing_month": string,"category": Database["public"]['Enums']["charge_category"],"charge_type_id": string,"created_at"?: string,"created_by"?: string | null,"description"?: string,"due_date": string,"id"?: string,"org_id": string,"status"?: Database["public"]['Enums']["charge_status"],"tenancy_id": string,"unit_id": string,"updated_at"?: string,"void_reason"?: string,"voided_at"?: string | null
+                    "amount": number,"amount_paid"?: number,"billing_month": string,"category": Database["public"]['Enums']["charge_category"],"charge_type_id": string,"created_at"?: string,"created_by"?: string | null,"description"?: string,"due_date": string,"id"?: string,"meter_current"?: number | null,"meter_previous"?: number | null,"org_id": string,"status"?: Database["public"]['Enums']["charge_status"],"tenancy_id": string,"unit_id": string,"unit_rate"?: number | null,"updated_at"?: string,"void_reason"?: string,"voided_at"?: string | null
                   }
                   Update: {
-                    "amount"?: number,"amount_paid"?: number,"billing_month"?: string,"category"?: Database["public"]['Enums']["charge_category"],"charge_type_id"?: string,"created_at"?: string,"created_by"?: string | null,"description"?: string,"due_date"?: string,"id"?: string,"org_id"?: string,"status"?: Database["public"]['Enums']["charge_status"],"tenancy_id"?: string,"unit_id"?: string,"updated_at"?: string,"void_reason"?: string,"voided_at"?: string | null
+                    "amount"?: number,"amount_paid"?: number,"billing_month"?: string,"category"?: Database["public"]['Enums']["charge_category"],"charge_type_id"?: string,"created_at"?: string,"created_by"?: string | null,"description"?: string,"due_date"?: string,"id"?: string,"meter_current"?: number | null,"meter_previous"?: number | null,"org_id"?: string,"status"?: Database["public"]['Enums']["charge_status"],"tenancy_id"?: string,"unit_id"?: string,"unit_rate"?: number | null,"updated_at"?: string,"void_reason"?: string,"voided_at"?: string | null
                   }
                   Relationships: [
                     {
@@ -341,6 +341,61 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"payment_claims": {
+                  Row: {
+                    "amount": number,"charge_id": string,"created_at": string,"created_by": string | null,"id": string,"landlord_notified_at": string | null,"method": Database["public"]['Enums']["payment_method"],"note": string,"org_id": string,"paid_on": string,"payment_id": string | null,"reference": string,"review_note": string,"reviewed_at": string | null,"reviewed_by": string | null,"status": Database["public"]['Enums']["payment_claim_status"],"tenant_id": string
+                  }
+                  Insert: {
+                    "amount": number,"charge_id": string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"landlord_notified_at"?: string | null,"method": Database["public"]['Enums']["payment_method"],"note"?: string,"org_id": string,"paid_on": string,"payment_id"?: string | null,"reference"?: string,"review_note"?: string,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"status"?: Database["public"]['Enums']["payment_claim_status"],"tenant_id": string
+                  }
+                  Update: {
+                    "amount"?: number,"charge_id"?: string,"created_at"?: string,"created_by"?: string | null,"id"?: string,"landlord_notified_at"?: string | null,"method"?: Database["public"]['Enums']["payment_method"],"note"?: string,"org_id"?: string,"paid_on"?: string,"payment_id"?: string | null,"reference"?: string,"review_note"?: string,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"status"?: Database["public"]['Enums']["payment_claim_status"],"tenant_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payment_claims_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_balances"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charges"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenant_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_payment_id_fkey"
+      columns: ["payment_id"]
+isOneToOne: false
+      referencedRelation: "payment_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "payment_claims_payment_id_fkey"
+      columns: ["payment_id"]
+isOneToOne: false
+      referencedRelation: "payments"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"payments": {
                   Row: {
                     "amount": number,"charge_id": string,"created_at": string,"id": string,"method": Database["public"]['Enums']["payment_method"],"org_id": string,"paid_on": string,"recorded_by": string | null,"reference": string,"void_reason": string,"voided_at": string | null
@@ -435,15 +490,40 @@ isOneToOne: false
       referencedColumns: ["org_id","id"]
     }
                   ]
-                },"tenant_invites": {
+                },"tenant_documents": {
                   Row: {
-                    "code_hash": string,"created_at": string,"created_by": string | null,"expires_at": string,"id": string,"org_id": string,"tenant_id": string,"used_at": string | null,"used_by": string | null
+                    "created_at": string,"file_name": string,"id": string,"kind": Database["public"]['Enums']["tenant_document_kind"],"org_id": string,"storage_path": string,"tenant_id": string,"uploaded_by": string | null
                   }
                   Insert: {
-                    "code_hash": string,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string,"id"?: string,"org_id": string,"tenant_id": string,"used_at"?: string | null,"used_by"?: string | null
+                    "created_at"?: string,"file_name"?: string,"id"?: string,"kind": Database["public"]['Enums']["tenant_document_kind"],"org_id": string,"storage_path": string,"tenant_id": string,"uploaded_by"?: string | null
                   }
                   Update: {
-                    "code_hash"?: string,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string,"id"?: string,"org_id"?: string,"tenant_id"?: string,"used_at"?: string | null,"used_by"?: string | null
+                    "created_at"?: string,"file_name"?: string,"id"?: string,"kind"?: Database["public"]['Enums']["tenant_document_kind"],"org_id"?: string,"storage_path"?: string,"tenant_id"?: string,"uploaded_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "tenant_documents_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenant_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "tenant_documents_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"tenant_invites": {
+                  Row: {
+                    "code_encrypted": string | null,"code_hash": string,"created_at": string,"created_by": string | null,"expires_at": string,"id": string,"org_id": string,"tenant_id": string,"used_at": string | null,"used_by": string | null
+                  }
+                  Insert: {
+                    "code_encrypted"?: string | null,"code_hash": string,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string,"id"?: string,"org_id": string,"tenant_id": string,"used_at"?: string | null,"used_by"?: string | null
+                  }
+                  Update: {
+                    "code_encrypted"?: string | null,"code_hash"?: string,"created_at"?: string,"created_by"?: string | null,"expires_at"?: string,"id"?: string,"org_id"?: string,"tenant_id"?: string,"used_at"?: string | null,"used_by"?: string | null
                   }
                   Relationships: [
                     {
@@ -479,15 +559,40 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"units": {
+                },"unit_charge_items": {
                   Row: {
-                    "bedrooms": number | null,"created_at": string,"default_rent": number,"floor": string,"id": string,"notes": string,"org_id": string,"property_id": string,"status": Database["public"]['Enums']["unit_status"],"unit_number": string,"unit_type": string,"updated_at": string
+                    "amount": number,"charge_type_id": string,"created_at": string,"created_by": string | null,"effective_month": string,"id": string,"org_id": string,"unit_id": string
                   }
                   Insert: {
-                    "bedrooms"?: number | null,"created_at"?: string,"default_rent"?: number,"floor"?: string,"id"?: string,"notes"?: string,"org_id": string,"property_id": string,"status"?: Database["public"]['Enums']["unit_status"],"unit_number": string,"unit_type"?: string,"updated_at"?: string
+                    "amount": number,"charge_type_id": string,"created_at"?: string,"created_by"?: string | null,"effective_month": string,"id"?: string,"org_id": string,"unit_id": string
                   }
                   Update: {
-                    "bedrooms"?: number | null,"created_at"?: string,"default_rent"?: number,"floor"?: string,"id"?: string,"notes"?: string,"org_id"?: string,"property_id"?: string,"status"?: Database["public"]['Enums']["unit_status"],"unit_number"?: string,"unit_type"?: string,"updated_at"?: string
+                    "amount"?: number,"charge_type_id"?: string,"created_at"?: string,"created_by"?: string | null,"effective_month"?: string,"id"?: string,"org_id"?: string,"unit_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "unit_charge_items_charge_type_id_fkey"
+      columns: ["charge_type_id"]
+isOneToOne: false
+      referencedRelation: "charge_types"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "unit_charge_items_org_id_unit_id_fkey"
+      columns: ["org_id","unit_id"]
+isOneToOne: false
+      referencedRelation: "units"
+      referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"units": {
+                  Row: {
+                    "bedrooms": number | null,"created_at": string,"default_rent": number,"electricity_account_no": string,"electricity_meter_no": string,"floor": string,"gas_meter_no": string,"id": string,"notes": string,"org_id": string,"property_id": string,"status": Database["public"]['Enums']["unit_status"],"unit_number": string,"unit_type": string,"updated_at": string
+                  }
+                  Insert: {
+                    "bedrooms"?: number | null,"created_at"?: string,"default_rent"?: number,"electricity_account_no"?: string,"electricity_meter_no"?: string,"floor"?: string,"gas_meter_no"?: string,"id"?: string,"notes"?: string,"org_id": string,"property_id": string,"status"?: Database["public"]['Enums']["unit_status"],"unit_number": string,"unit_type"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "bedrooms"?: number | null,"created_at"?: string,"default_rent"?: number,"electricity_account_no"?: string,"electricity_meter_no"?: string,"floor"?: string,"gas_meter_no"?: string,"id"?: string,"notes"?: string,"org_id"?: string,"property_id"?: string,"status"?: Database["public"]['Enums']["unit_status"],"unit_number"?: string,"unit_type"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -509,7 +614,7 @@ isOneToOne: false
           Views: {
             "charge_balances": {
                   Row: {
-                    "amount": number | null,"amount_paid": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_type_id": string | null,"created_at": string | null,"description": string | null,"due_date": string | null,"effective_status": string | null,"id": string | null,"org_id": string | null,"outstanding": number | null,"status": Database["public"]['Enums']["charge_status"] | null,"tenancy_id": string | null,"type_key": string | null,"type_label": string | null,"unit_id": string | null,"void_reason": string | null,"voided_at": string | null
+                    "amount": number | null,"amount_paid": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_type_id": string | null,"created_at": string | null,"description": string | null,"due_date": string | null,"effective_status": string | null,"id": string | null,"meter_current": number | null,"meter_previous": number | null,"org_id": string | null,"outstanding": number | null,"status": Database["public"]['Enums']["charge_status"] | null,"tenancy_id": string | null,"type_key": string | null,"type_label": string | null,"unit_id": string | null,"unit_rate": number | null,"void_reason": string | null,"voided_at": string | null
                   }
                   Relationships: [
                     {
@@ -534,7 +639,7 @@ isOneToOne: false
                   ]
                 },"charge_overview": {
                   Row: {
-                    "amount": number | null,"amount_paid": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_type_id": string | null,"created_at": string | null,"description": string | null,"due_date": string | null,"effective_status": string | null,"id": string | null,"org_id": string | null,"outstanding": number | null,"property_id": string | null,"property_name": string | null,"status": Database["public"]['Enums']["charge_status"] | null,"tenancy_id": string | null,"tenant_id": string | null,"tenant_name": string | null,"type_key": string | null,"type_label": string | null,"unit_id": string | null,"unit_number": string | null,"void_reason": string | null,"voided_at": string | null
+                    "amount": number | null,"amount_paid": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_type_id": string | null,"created_at": string | null,"description": string | null,"due_date": string | null,"effective_status": string | null,"id": string | null,"meter_current": number | null,"meter_previous": number | null,"org_id": string | null,"outstanding": number | null,"property_id": string | null,"property_name": string | null,"status": Database["public"]['Enums']["charge_status"] | null,"tenancy_id": string | null,"tenant_id": string | null,"tenant_name": string | null,"type_key": string | null,"type_label": string | null,"unit_id": string | null,"unit_number": string | null,"unit_rate": number | null,"void_reason": string | null,"voided_at": string | null
                   }
                   Relationships: [
                     {
@@ -590,13 +695,13 @@ isOneToOne: false
                   ]
                 },"my_notices": {
                   Row: {
-                    "audience": Database["public"]['Enums']["notice_audience"] | null,"body": string | null,"created_at": string | null,"expires_at": string | null,"id": string | null,"is_read": boolean | null,"org_id": string | null,"publish_at": string | null,"title": string | null
+                    "audience": Database["public"]['Enums']["notice_audience"] | null,"body": string | null,"created_at": string | null,"expires_at": string | null,"id": string | null,"is_read": boolean | null,"org_id": string | null,"property_id": string | null,"publish_at": string | null,"title": string | null
                   }
                   Insert: {
-                           "audience"?: Database["public"]['Enums']["notice_audience"] | null,"body"?: string | null,"created_at"?: string | null,"expires_at"?: string | null,"id"?: string | null,"is_read"?: never,"org_id"?: string | null,"publish_at"?: string | null,"title"?: string | null
+                           "audience"?: Database["public"]['Enums']["notice_audience"] | null,"body"?: string | null,"created_at"?: string | null,"expires_at"?: string | null,"id"?: string | null,"is_read"?: never,"org_id"?: string | null,"property_id"?: string | null,"publish_at"?: string | null,"title"?: string | null
                          }
                         Update: {
-                           "audience"?: Database["public"]['Enums']["notice_audience"] | null,"body"?: string | null,"created_at"?: string | null,"expires_at"?: string | null,"id"?: string | null,"is_read"?: never,"org_id"?: string | null,"publish_at"?: string | null,"title"?: string | null
+                           "audience"?: Database["public"]['Enums']["notice_audience"] | null,"body"?: string | null,"created_at"?: string | null,"expires_at"?: string | null,"id"?: string | null,"is_read"?: never,"org_id"?: string | null,"property_id"?: string | null,"publish_at"?: string | null,"title"?: string | null
                          }
                         Relationships: [
                     {
@@ -605,6 +710,18 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "organizations"
       referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notices_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "properties"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "notices_org_id_property_id_fkey"
+      columns: ["org_id","property_id"]
+isOneToOne: false
+      referencedRelation: "property_overview"
+      referencedColumns: ["org_id","id"]
     }
                   ]
                 },"notice_overview": {
@@ -630,6 +747,55 @@ isOneToOne: false
 isOneToOne: false
       referencedRelation: "property_overview"
       referencedColumns: ["org_id","id"]
+    }
+                  ]
+                },"payment_claim_overview": {
+                  Row: {
+                    "amount": number | null,"billing_month": string | null,"category": Database["public"]['Enums']["charge_category"] | null,"charge_id": string | null,"created_at": string | null,"created_by": string | null,"id": string | null,"landlord_notified_at": string | null,"method": Database["public"]['Enums']["payment_method"] | null,"note": string | null,"org_id": string | null,"paid_on": string | null,"payment_id": string | null,"property_name": string | null,"reference": string | null,"review_note": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"status": Database["public"]['Enums']["payment_claim_status"] | null,"tenant_id": string | null,"tenant_name": string | null,"type_label": string | null,"unit_number": string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "payment_claims_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_balances"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charge_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_charge_id_fkey"
+      columns: ["org_id","charge_id"]
+isOneToOne: false
+      referencedRelation: "charges"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenant_overview"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_org_id_tenant_id_fkey"
+      columns: ["org_id","tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["org_id","id"]
+    },{
+      foreignKeyName: "payment_claims_payment_id_fkey"
+      columns: ["payment_id"]
+isOneToOne: false
+      referencedRelation: "payment_overview"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "payment_claims_payment_id_fkey"
+      columns: ["payment_id"]
+isOneToOne: false
+      referencedRelation: "payments"
+      referencedColumns: ["id"]
     }
                   ]
                 },"payment_overview": {
@@ -708,8 +874,16 @@ isOneToOne: false
               "invite_code": string,"invite_expires_at": string
             }[]
                            },
+"generate_monthly_charges":
+{ Args: { "p_month": string,"p_property_id"?: string }; Returns: number
+                           },
 "generate_monthly_rent":
 { Args: { "p_month": string,"p_property_id"?: string }; Returns: number
+                           },
+"get_tenant_invite_code":
+{ Args: { "p_tenant_id": string }; Returns: {
+              "invite_code": string,"invite_expires_at": string
+            }[]
                            },
 "landlord_dashboard":
 { Args: { "p_org_id": string }; Returns: Json
@@ -719,15 +893,32 @@ isOneToOne: false
                            },
 "my_tenancies":
 { Args: Record<PropertyKey, never>; Returns: {
-              "bedrooms": number,"currency": string,"floor": string,"monthly_rent": number,"move_in_date": string,"move_out_date": string,"organization_name": string,"property_address": string,"property_city": string,"property_name": string,"rent_due_day": number,"security_deposit": number,"status": Database["public"]['Enums']["tenancy_status"],"tenancy_id": string,"timezone": string,"unit_id": string,"unit_number": string,"unit_type": string
+              "bedrooms": number,"currency": string,"electricity_account_no": string,"electricity_meter_no": string,"floor": string,"gas_meter_no": string,"monthly_rent": number,"move_in_date": string,"move_out_date": string,"org_id": string,"organization_name": string,"property_address": string,"property_city": string,"property_id": string,"property_name": string,"rent_due_day": number,"security_deposit": number,"status": Database["public"]['Enums']["tenancy_status"],"tenancy_id": string,"timezone": string,"unit_id": string,"unit_number": string,"unit_type": string
             }[]
+                           },
+"payment_claim_recipients":
+{ Args: { "p_claim_id": string }; Returns: {
+              "email": string,"organization_name": string
+            }[]
+                           },
+"review_payment_claim":
+{ Args: { "p_approve": boolean,"p_claim_id": string,"p_note": string }; Returns: string
+                           },
+"set_unit_charge_item":
+{ Args: { "p_amount": number,"p_charge_type_id": string,"p_effective_month": string,"p_unit_id": string }; Returns: number
+                           },
+"submit_payment_claim":
+{ Args: { "p_amount": number,"p_charge_id": string,"p_method": Database["public"]['Enums']["payment_method"],"p_note": string,"p_paid_on": string,"p_reference": string }; Returns: string
                            },
 "tenant_dashboard":
 { Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"update_notice":
+{ Args: { "p_audience": Database["public"]['Enums']["notice_audience"],"p_body": string,"p_expires_at": string,"p_id": string,"p_property_id": string,"p_publish_at": string,"p_title": string,"p_unit_ids": (string)[] }; Returns: undefined
                            }
           }
           Enums: {
-            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","notice_audience": "all"|"property"|"units","notification_channel": "in_app"|"email"|"sms"|"whatsapp","notification_status": "pending"|"sent"|"failed","notification_type": "payment_reminder","org_member_role": "owner"|"manager","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
+            "charge_category": "rent"|"utility","charge_status": "unpaid"|"partially_paid"|"paid"|"void","maintenance_category": "plumbing"|"electrical"|"air_conditioning"|"water"|"door_lock"|"internet"|"appliance"|"other","maintenance_status": "pending"|"in_progress"|"resolved"|"cancelled","notice_audience": "all"|"property"|"units","notification_channel": "in_app"|"email"|"sms"|"whatsapp","notification_status": "pending"|"sent"|"failed","notification_type": "payment_reminder"|"charge_change"|"payment_claim_reviewed","org_member_role": "owner"|"manager","payment_claim_status": "pending"|"approved"|"rejected","payment_method": "cash"|"bank_transfer"|"bkash"|"nagad"|"card"|"other","tenancy_status": "active"|"moved_out","tenant_document_kind": "nid"|"birth_certificate"|"passport"|"other","unit_status": "vacant"|"occupied"|"maintenance"|"inactive","user_role": "landlord"|"tenant"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -843,7 +1034,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"notice_audience": ["all", "property", "units"],"notification_channel": ["in_app", "email", "sms", "whatsapp"],"notification_status": ["pending", "sent", "failed"],"notification_type": ["payment_reminder"],"org_member_role": ["owner", "manager"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
+            "charge_category": ["rent", "utility"],"charge_status": ["unpaid", "partially_paid", "paid", "void"],"maintenance_category": ["plumbing", "electrical", "air_conditioning", "water", "door_lock", "internet", "appliance", "other"],"maintenance_status": ["pending", "in_progress", "resolved", "cancelled"],"notice_audience": ["all", "property", "units"],"notification_channel": ["in_app", "email", "sms", "whatsapp"],"notification_status": ["pending", "sent", "failed"],"notification_type": ["payment_reminder", "charge_change", "payment_claim_reviewed"],"org_member_role": ["owner", "manager"],"payment_claim_status": ["pending", "approved", "rejected"],"payment_method": ["cash", "bank_transfer", "bkash", "nagad", "card", "other"],"tenancy_status": ["active", "moved_out"],"tenant_document_kind": ["nid", "birth_certificate", "passport", "other"],"unit_status": ["vacant", "occupied", "maintenance", "inactive"],"user_role": ["landlord", "tenant"]
           }
         }
 } as const

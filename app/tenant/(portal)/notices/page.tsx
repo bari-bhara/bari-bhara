@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/app/empty-state";
 import { PageHeader } from "@/components/app/page-header";
 import { Pagination } from "@/components/app/pagination";
 import { listMyNotices } from "@/features/notices/queries";
-import { getMyTenancies } from "@/features/tenant-portal/queries";
+import { getHomeLabels, getMyTenancies } from "@/features/tenant-portal/queries";
 import { formatDate } from "@/lib/format";
 import { PAGE_SIZE, parsePage, withPage } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,11 @@ export const metadata: Metadata = { title: "Notices" };
 
 export default async function TenantNoticesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const page = parsePage((await searchParams).page);
-  const [{ rows: notices, total }, tenancies] = await Promise.all([listMyNotices(page), getMyTenancies()]);
+  const [{ rows: notices, total }, tenancies, homes] = await Promise.all([
+    listMyNotices(page),
+    getMyTenancies(),
+    getHomeLabels(),
+  ]);
   const timezone = tenancies[0]?.timezone;
 
   return (
@@ -44,8 +48,11 @@ export default async function TenantNoticesPage({ searchParams }: { searchParams
                       {!notice.is_read && <span className="sr-only"> (unread)</span>}
                     </p>
                     <p className="truncate text-sm text-muted-foreground">
-                      {formatDate(notice.publish_at, timezone)} · {notice.body}
+                      {[formatDate(notice.publish_at, timezone), homes.forNotice(notice)]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
+                    <p className="truncate text-sm text-muted-foreground">{notice.body}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </Link>

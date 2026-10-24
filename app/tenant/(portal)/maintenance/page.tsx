@@ -56,7 +56,9 @@ export default async function TenantMaintenancePage({
                       <MaintenanceStatusBadge status={request.status} />
                     </div>
                     <p className="truncate text-sm text-muted-foreground">
-                      {CATEGORY_LABELS[request.category]} · {formatDate(request.created_at, timezone)}
+                      {[CATEGORY_LABELS[request.category], request.home, formatDate(request.created_at, timezone)]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />

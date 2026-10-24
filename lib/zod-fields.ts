@@ -67,3 +67,10 @@ export const optionalPhone = z
   .trim()
   .max(30, "Use 30 characters or fewer.")
   .regex(/^(\+?[\d\s-]{6,})?$/, "Enter a phone number like +8801711000000.");
+
+export const requiredPhone = z
+  .string()
+  .trim()
+  .min(1, "Enter a phone number.")
+  .max(30, "Use 30 characters or fewer.")
+  .regex(/^\+?[\d\s-]{6,}$/, "Enter a phone number like +8801711000000.");

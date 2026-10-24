@@ -33,7 +33,8 @@ export async function ChargesMonthView({
 }) {
   const organization = await getCurrentOrganization();
   const currency = organization?.currency ?? "BDT";
-  const currentMonth = todayIn(organization?.timezone).slice(0, 7);
+  const today = todayIn(organization?.timezone);
+  const currentMonth = today.slice(0, 7);
   const month = isMonth(params.month) ? params.month : currentMonth;
   const status = isChargeFilterStatus(params.status) ? params.status : null;
 
@@ -113,7 +114,12 @@ export async function ChargesMonthView({
               description="No charges this month have that status."
             />
           ) : (
-            <ChargesList charges={visible} currency={currency} showType={category === "utility"} />
+            <ChargesList
+              charges={visible}
+              currency={currency}
+              showType={category === "utility"}
+              today={today}
+            />
           )}
         </>
       )}
